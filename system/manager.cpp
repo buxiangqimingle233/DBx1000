@@ -27,6 +27,7 @@ void Manager::init() {
 
 uint64_t 
 Manager::get_ts(uint64_t thread_id) {
+	// HACK: Timestamp implemented here
 	if (g_ts_batch_alloc)
 		assert(g_ts_alloc == TS_CAS);
 	uint64_t time;

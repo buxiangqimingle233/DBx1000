@@ -1,0 +1,20 @@
+{
+    "cmake.configureOnOpen": false,
+    "files.associations": {
+        "*.m": "matlab",
+        "spatial_spec": "code-text-binary",
+        "*.tcc": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "typeinfo": "cpp",
+        "array": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "utility": "cpp",
+        "optional": "cpp",
+        "ratio": "cpp",
+        "system_error": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp"
+    }
+}

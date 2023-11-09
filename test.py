@@ -19,6 +19,7 @@ def insert_job(alg, workload):
 		"WORKLOAD"			: workload,
 		"CORE_CNT"			: 4,
 		"CC_ALG"			: alg,
+		"MAX_TXN_PER_PART"	: 1000
 	}
 
 

@@ -48,16 +48,20 @@ RC thread_t::run() {
 	rdm.init(get_thd_id());
 	RC rc = RCOK;
 	txn_man * m_txn;
+	// HACK: transaction manager stores concurrency control metadata, including r/w set ?
 	rc = _wl->get_txn_man(m_txn, this);
 	assert (rc == RCOK);
-	glob_manager->set_txn_man(m_txn);
 
+	// HACK: Global manager stores one running txn for each thread
+	glob_manager->set_txn_man(m_txn);
 	base_query * m_query = NULL;
 	uint64_t thd_txn_id = 0;
 	UInt64 txn_cnt = 0;
 
 	while (true) {
 		ts_t starttime = get_sys_clock();
+
+		// HACK: Get query from query queue
 		if (WORKLOAD != TEST) {
 			int trial = 0;
 			if (_abort_buffer_enable) {
@@ -104,6 +108,7 @@ RC thread_t::run() {
 		m_txn->set_txn_id(get_thd_id() + thd_txn_id * g_thread_cnt);
 		thd_txn_id ++;
 
+		// HACK: get timestamp
 		if ((CC_ALG == HSTORE && !HSTORE_LOCAL_TS)
 				|| CC_ALG == MVCC 
 				|| CC_ALG == HEKATON
@@ -127,6 +132,8 @@ RC thread_t::run() {
 		// results should be the same.
 		m_txn->start_ts = get_next_ts(); 
 #endif
+
+		// HACK: run txn
 		if (rc == RCOK) 
 		{
 #if CC_ALG != VLL

@@ -17,6 +17,17 @@ thread_t ** m_thds;
 // defined in parser.cpp
 void parser(int argc, char * argv[]);
 
+/* HACK:
+	1. workloads (yasb_wl, tpcc_wl) store INDEX + row_t (manager + record), in the_index and the_table
+	2. transaction manager (ycsb_txn_man, tpcc_txn_man) stores basic data structures for concurrency control algorithms, 
+		and implements transaction logic
+	3. tread_t::run() initialize a transaction from the query_queue, get timestamp, invoke ycsb_txn_man.run_txn(), address aborts
+	4. Different concurrency control protocols are implemented in: 
+		a. thread_t::run() when getting timestamps
+		b. row_t::manager states for version management states and locks
+		c. txn_man::get_row() & row_t::get_row() when touching records
+*/
+
 int main(int argc, char* argv[])
 {
 	parser(argc, argv);

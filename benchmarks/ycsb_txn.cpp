@@ -48,6 +48,7 @@ RC ycsb_txn_man::run_txn(base_query * query) {
 			row_t * row_local; 
 			access_t type = req->rtype;
 			
+			// HACK: different concurrency control algorithms are impelemented in different ways.
 			row_local = get_row(row, type);
 			if (row_local == NULL) {
 				rc = Abort;
