@@ -25,7 +25,9 @@
 #include "config.h"
 #include "stats.h"
 #include "dl_detect.h"
+
 #ifndef NOGRAPHITE
+// FIXME: change graphite to snipersim
 #include "carbon_user.h"
 #endif
 
@@ -39,6 +41,7 @@ class Query_queue;
 class Plock;
 class OptCC;
 class VLLMan;
+class LogManager;
 
 typedef uint32_t UInt32;
 typedef int32_t SInt32;
@@ -86,6 +89,23 @@ extern ts_t g_timeout;
 extern ts_t g_dl_loop_detect;
 extern bool g_ts_batch_alloc;
 extern UInt32 g_ts_batch_num;
+extern uint64_t g_max_txns_per_thread;
+
+// Logging 
+extern bool g_log_recover;
+extern uint32_t g_num_logger;
+extern uint32_t g_num_disk;
+extern bool g_no_flush;
+extern pthread_barrier_t log_bar;
+extern pthread_barrier_t worker_bar;
+extern LogManager ** log_manager;
+extern uint64_t g_flush_blocksize;
+extern uint32_t g_max_log_entry_size;
+extern bool g_ramdisk;
+extern uint32_t g_log_chunk_size;
+extern uint64_t g_max_num_epoch;
+extern uint64_t g_flush_interval;
+extern uint64_t g_log_buffer_size;
 
 extern map<string, string> g_params;
 

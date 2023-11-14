@@ -23,6 +23,9 @@ txn_man::validate_hekaton(RC rc)
 		}
 	}
 #endif
+
+	// Do logging
+	make_log();
 	// postprocess 
 	for (int rid = 0; rid < row_cnt; rid ++) {
 		if (accesses[rid]->type == RD)

@@ -71,6 +71,10 @@ OptCC::per_row_validate(txn_man * txn) {
 		// advance the global timestamp and get the end_ts
 		txn->end_ts = glob_manager->get_ts( txn->get_thd_id() );
 		// write to each row and update wts
+
+		// Do logging
+		txn->make_log(rc);
+
 		txn->cleanup(RCOK);
 		rc = RCOK;
 	} else {

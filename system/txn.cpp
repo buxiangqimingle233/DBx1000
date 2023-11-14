@@ -9,6 +9,81 @@
 #include "catalog.h"
 #include "index_btree.h"
 #include "index_hash.h"
+#include "global.h"
+#include "manager.h"
+#include "log.h"
+
+RC txn_man::make_log(RC rc) {
+	// This function assumes every write row has already been locked, and will be released after logging finishes
+	if (RCOK != rc) return rc;
+	if (wr_cnt == 0) return rc;		// no need to make logs
+#if LOG_ALGORITHM == LOG_NO
+	return rc;
+#endif
+	// create log entry
+	// Format for serial logging
+	// | checksum:4 | size:4 | N:4 | (table_id:4 | primary_key:8 | data_length:4 | data:?) * N
+	// Format for parallel logging
+	// | checksum | size | predecessor_info | N | (table_id | primary_key | data_length | data) * N
+	//
+	// predecessor_info has the following format
+	// if TRACK_WAR_DEPENDENCY
+	//   | num_raw_preds | TID * num_raw_preds | key * num_raw_preds | table * ...
+	//   | num_waw_preds | TID * num_waw_preds | key * num_waw_preds | table * ...
+	// else 
+	//   | num_raw_preds | TID * num_raw_preds 
+	//   | num_waw_preds | TID * num_waw_preds
+	//
+	// Format for batch logging 
+	// | checksum | size | TID | N | (table_id | primary_key | data_length | data) * N
+	// 
+	// Assumption: every write is actually an update. 
+	// predecessors store the TID of predecessor transactions. 
+	
+	uint32_t offset = 0;
+	uint32_t checksum = 0xbeef;  // we also use this to distinguish PSN items and log items
+	//uint32_t size = 0;
+	PACK(_log_entry, checksum, offset);
+	//PACK(_log_entry, size, offset);
+	offset += sizeof(uint32_t); // make space for size;
+#if CC_ALG == SILO
+	PACK(_log_entry, _cur_tid, offset);
+#endif
+	PACK(_log_entry, wr_cnt, offset);
+
+	for (uint32_t i = 0; i < (uint32_t)row_cnt; i ++) {
+		if (accesses[i]->type == RD) continue;
+		row_t * orig_row = accesses[i]->orig_row; 
+		// uint32_t table_id = orig_row->get_table()->get_table_id();	// FIXME: no table id now
+		uint64_t key = orig_row->get_primary_key();
+		uint32_t tuple_size = orig_row->get_tuple_size();
+
+		char * tuple_data = accesses[i]->data->data;	// TODO: for in-place updates, access->data point to the original row
+
+		//assert(tuple_size!=0);
+
+		// PACK(_log_entry, table_id, offset);
+		PACK(_log_entry, key, offset);
+		PACK(_log_entry, tuple_size, offset);
+		PACK_SIZE(_log_entry, tuple_data, tuple_size, offset);
+	}
+
+	uint32_t _log_entry_size = offset;
+	assert(_log_entry_size < g_max_log_entry_size);
+	// update size. 
+	memcpy(_log_entry + sizeof(uint32_t), &_log_entry_size, sizeof(uint32_t));
+	//cout << _log_entry_size << endl;
+	INC_FLOAT_STATS(log_total_size, _log_entry_size);
+	INC_INT_STATS_V0(num_log_entries, 1);
+
+	uint32_t logger_id = _worker_thd_id % g_num_logger;
+	uint64_t _persistent_epoch = glob_manager->get_epoch();	
+	uint64_t tid = log_manager[logger_id]->logTxn(_log_entry, _log_entry_size, _persistent_epoch);
+	if (tid == (uint64_t)-1) {
+		return Abort;
+	}
+	return rc;
+}
 
 void txn_man::init(thread_t * h_thd, workload * h_wl, uint64_t thd_id) {
 	this->h_thd = h_thd;
@@ -40,6 +115,8 @@ void txn_man::init(thread_t * h_thd, workload * h_wl, uint64_t thd_id) {
 	_cur_tid = 0;
 #endif
 
+	_log_entry = (char *) _mm_malloc(g_max_log_entry_size, 64);
+	_worker_thd_id = thd_id;
 }
 
 void txn_man::set_txn_id(txnid_t txn_id) {
@@ -73,6 +150,11 @@ void txn_man::cleanup(RC rc) {
 	insert_cnt = 0;
 	return;
 #endif
+
+#if (CC_ALG == WAIT_DIE || CC_ALG == DL_DETECT || CC_ALG == NO_WAIT)
+	make_log(rc);
+#endif
+
 	for (int rid = row_cnt - 1; rid >= 0; rid --) {
 		row_t * orig_r = accesses[rid]->orig_row;
 		access_t type = accesses[rid]->type;
@@ -93,8 +175,8 @@ void txn_man::cleanup(RC rc) {
 		{
 			orig_r->return_row(type, this, accesses[rid]->orig_data);
 		} else {
-			orig_r->return_row(type, this, accesses[rid]->data);
-		}
+			orig_r->return_row(type, this, accesses[rid]->data); 	// HACK: Pessimistic CC Release locks here
+		}	
 #if CC_ALG != TICTOC && CC_ALG != SILO
 		accesses[rid]->data = NULL;
 #endif

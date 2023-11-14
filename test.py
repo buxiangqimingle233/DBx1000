@@ -91,6 +91,7 @@ for alg in algs:
 	insert_job(alg, 'TPCC')
 run_all_test(jobs)
 
-os.system('cp config-std.h config.h')
+# FIXME: we directly use config.h
+# os.system('cp config-std.h config.h')
 os.system('make clean > temp.out 2>&1')
 os.system('rm temp.out')

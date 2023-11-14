@@ -9,7 +9,7 @@
 #include "mem_alloc.h"
 
 RC workload::init() {
-	sim_done = false;
+	sim_done = 0;
 	return RCOK;
 }
 

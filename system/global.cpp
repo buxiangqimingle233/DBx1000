@@ -7,6 +7,7 @@
 #include "plock.h"
 #include "occ.h"
 #include "vll.h"
+#include "log.h"
 
 mem_alloc mem_allocator;
 Stats stats;
@@ -19,12 +20,32 @@ OptCC occ_man;
 VLLMan vll_man;
 #endif 
 
+// Logging
+bool g_log_recover = LOG_RECOVER;
+uint32_t g_num_logger = NUM_LOGGER;
+uint32_t g_num_disk = 0;
+bool g_no_flush = LOG_NO_FLUSH;
+LogManager ** log_manager;  // FIXME: Initialize this 
+bool g_ramdisk = false;
+uint64_t g_flush_blocksize = FLUSH_BLOCK_SIZE;
+uint32_t g_max_log_entry_size = MAX_LOG_ENTRY_SIZE;
+uint32_t g_log_chunk_size = LOG_CHUNK_SIZE;
+uint64_t g_max_num_epoch = MAX_NUM_EPOCH;
+uint64_t g_flush_interval = LOG_FLUSH_INTERVAL;
+uint64_t g_log_buffer_size = LOG_BUFFER_SIZE;
+
 bool volatile warmup_finish = false;
 bool volatile enable_thread_mem_pool = false;
 pthread_barrier_t warmup_bar;
+pthread_barrier_t log_bar;
+pthread_barrier_t worker_bar;
+
+// FIXME: Change Graphite to snipersim
 #ifndef NOGRAPHITE
 carbon_barrier_t enable_barrier;
 #endif
+
+uint64_t g_max_txns_per_thread = MAX_TXNS_PER_THREAD;
 
 ts_t g_abort_penalty = ABORT_PENALTY;
 bool g_central_man = CENTRAL_MAN;
@@ -58,6 +79,7 @@ UInt32 g_num_wh = NUM_WH;
 double g_perc_payment = PERC_PAYMENT;
 bool g_wh_update = WH_UPDATE;
 char * output_file = NULL;
+
 
 map<string, string> g_params;
 

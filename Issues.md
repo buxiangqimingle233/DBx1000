@@ -1,0 +1,1 @@
+Set NOGRAPHITE=1 in vscode, change it to snipersim

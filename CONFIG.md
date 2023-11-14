@@ -1,3 +1,29 @@
+# Code Navigation Logs
+
+1. workloads (yasb_wl, tpcc_wl) store INDEX + row_t (manager + record), in the_index and the_table
+2. transaction manager (ycsb_txn_man, tpcc_txn_man) stores basic data structures for concurrency control algorithms, 
+    and implements transaction logic
+3. thread_t::run() initialize a transaction from the query_queue, get timestamp, invoke ycsb_txn_man.run_txn(), address aborts
+4. Different concurrency control protocols are implemented in: 
+    a. thread_t::run() when getting timestamps
+    b. row_t::manager states for version management states and locks
+    c. txn_man::get_row() & row_t::get_row() when touching records
+
+
+# Add Logging
+
+* Log worker: LoggingThread             (periodically flushes logs to storage)
+* Log entity: LogManager                (manages log records)
+* APIs to transaction worker: txn_man::make_log   (packetize log records and send to LogManager)
+
+* The chance to call make_log: in concurrency control protocols, after serialization point and correctness validation, before releasing locks
+    * SILO: after r/w set validation, before release write locks
+    * OCC: after validation, before cleanup
+    * TICTOC: before write data
+    * HEKATON: before postprocess, after readset validation
+    * WAIT_DIE, NO_WAIT, DL_DETECT: at cleanup, before roll-back
+    * HEKATON, HSTORE, VLL
+
 # Staring into the abyss: An evaluation of concurrency control with one thousand cores
 ## TPC-C
 

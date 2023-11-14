@@ -1,13 +1,21 @@
 CC=g++
 CFLAGS=-Wall -g -std=c++0x
 
+MODE=RELEASE
+
 .SUFFIXES: .o .cpp .h
 
 SRC_DIRS = ./ ./benchmarks/ ./concurrency_control/ ./storage/ ./system/
 INCLUDE = -I. -I./benchmarks -I./concurrency_control -I./storage -I./system
 
-CFLAGS += $(INCLUDE) -D NOGRAPHITE=1 -Werror -O3 -no-pie
-LDFLAGS = -Wall -L. -L./libs -pthread -g -lrt -std=c++0x -O3 -ljemalloc
+ifeq ($(MODE),RELEASE)
+	CFLAGS += $(INCLUDE) -D NOGRAPHITE=1 -Werror -O3 -no-pie -Wno-unused-variable
+	LDFLAGS = -Wall -L. -L./libs -pthread -g -lrt -std=c++0x -O3 -ljemalloc -lnuma
+else
+	CFLAGS += $(INCLUDE) -D NOGRAPHITE=1 -Werror -O0 -no-pie -Wno-unused-variable
+	LDFLAGS = -Wall -L. -L./libs -pthread -g -lrt -std=c++0x -O0 -ljemalloc -lnuma
+endif
+
 LDFLAGS += $(CFLAGS)
 
 CPPS = $(foreach dir, $(SRC_DIRS), $(wildcard $(dir)*.cpp))

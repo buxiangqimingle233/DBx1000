@@ -76,7 +76,7 @@ uint64_t row_t::get_tuple_size() {
 	return get_schema()->get_tuple_size();
 }
 
-uint64_t row_t::get_field_cnt() { 
+uint64_t row_t::get_field_cnt() {
 	return get_schema()->field_cnt;
 }
 
@@ -267,6 +267,8 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 // delete during history cleanup.
 // For TIMESTAMP, the row will be explicity deleted at the end of access().
 // (cf. row_ts.cpp)
+// Pessimistic CC algorithms (WAIT_DIE, NO_WAIT, DL_DETECT) leverage this function 
+// to release locks. 
 void row_t::return_row(access_t type, txn_man * txn, row_t * row) {	
 #if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == DL_DETECT
 	assert (row == NULL || row == this || type == XP);

@@ -44,6 +44,7 @@ public:
 	workload * h_wl;
 	myrand * mrand;
 	uint64_t abort_cnt;
+	RC make_log(RC rc);
 
 	virtual RC 		run_txn(base_query * m_query) = 0;
 	uint64_t 		get_thd_id();
@@ -56,6 +57,8 @@ public:
 
 	pthread_mutex_t txn_lock;
 	row_t * volatile cur_row;
+
+
 #if CC_ALG == HEKATON
 	void * volatile history_entry;
 #endif
@@ -116,4 +119,9 @@ private:
 #elif CC_ALG == HEKATON
 	RC 				validate_hekaton(RC rc);
 #endif
+
+	// for logging
+protected:
+	char * 			_log_entry;
+	uint64_t 		_worker_thd_id;
 };

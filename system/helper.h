@@ -5,6 +5,14 @@
 #include <stdint.h>
 #include "global.h"
 
+/************************************************/
+// for logging
+/************************************************/
+#define GET_THD_ID glob_manager->get_thd_id()
+#define GET_WORKLOAD glob_manager->get_workload()
+
+#define MALLOC(x,y) _mm_malloc(x, 64)
+#define MM_FREE(x,y) _mm_free(x)
 
 /************************************************/
 // atomic operations
@@ -22,6 +30,18 @@
 	__sync_fetch_and_add(&(dest), value)
 #define ATOM_SUB_FETCH(dest, value) \
 	__sync_sub_and_fetch(&(dest), value)
+
+/////////////////////////////
+// packatize helper 
+/////////////////////////////
+#define PACK(buffer, var, offset) {\
+	memcpy(buffer + offset, &var, sizeof(var)); \
+	offset += sizeof(var); \
+}
+#define PACK_SIZE(buffer, ptr, size, offset) {\
+    if (size > 0) {\
+		memcpy(buffer + offset, ptr, size); \
+		offset += size; }}
 
 #define COMPILER_BARRIER asm volatile("" ::: "memory");
 #define PAUSE { __asm__ ( "pause;" ); }
@@ -93,6 +113,32 @@
 #define INC_GLOB_STATS(name, value) \
 	if (STATS_ENABLE) \
 		stats.name += value;
+
+#define INC_FLOAT_STATS_V0(name, value) {{ }}
+
+#define INC_FLOAT_STATS(name, value) {{ }}
+
+#define INC_INT_STATS_V0(name, value) {{ }}
+
+#define INC_INT_STATS(name, value) {{ }}
+
+/*
+#define INC_FLOAT_STATS_V0(name, value) {{ \
+	if (STATS_ENABLE && STAT_VERBOSE >= 0) \
+		stats->_stats[GET_THD_ID]->_float_stats[STAT_##name] += value; }}
+
+#define INC_FLOAT_STATS(name, value) {{ \
+	if (STATS_ENABLE && STAT_VERBOSE >= 1) \
+		stats->_stats[GET_THD_ID]->_float_stats[STAT_##name] += value; }}
+
+#define INC_INT_STATS_V0(name, value) {{ \
+	if (STATS_ENABLE && STAT_VERBOSE >= 0) \
+		stats->_stats[GET_THD_ID]->_int_stats[STAT_##name] += value; }}
+
+#define INC_INT_STATS(name, value) {{ \
+	if (STATS_ENABLE && STAT_VERBOSE >= 1) \
+		stats->_stats[GET_THD_ID]->_int_stats[STAT_##name] += value; }}
+*/
 
 /************************************************/
 // malloc helper
@@ -166,6 +212,15 @@ uint64_t get_part_id(void * addr);
 uint64_t merge_idx_key(uint64_t key_cnt, uint64_t * keys);
 uint64_t merge_idx_key(uint64_t key1, uint64_t key2);
 uint64_t merge_idx_key(uint64_t key1, uint64_t key2, uint64_t key3);
+
+inline double get_wall_time(){ // used to calibrate wrong CPU_FREQ
+    struct timeval time;
+    if (gettimeofday(&time,NULL)){
+        //  Handle error
+        return 0;
+    }
+    return (double)time.tv_sec + (double)time.tv_usec * .000001;
+}
 
 extern timespec * res;
 inline uint64_t get_server_clock() {

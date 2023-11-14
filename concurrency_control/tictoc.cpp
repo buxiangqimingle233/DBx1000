@@ -231,6 +231,9 @@ final:
 		if (commit_wts > _max_wts)
 			_max_wts = commit_wts;
 
+		// Do logging
+		make_log();
+
 		if (_write_copy_ptr) {
 			assert(false);
 		} else {

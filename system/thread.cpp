@@ -41,6 +41,7 @@ RC thread_t::run() {
 	pthread_barrier_wait( &warmup_bar );
 	stats.init(get_thd_id());
 	pthread_barrier_wait( &warmup_bar );
+	pthread_barrier_wait( &log_bar );
 
 	set_affinity(get_thd_id());
 
@@ -150,6 +151,7 @@ RC thread_t::run() {
 				part_lock_man.unlock(m_txn, m_query->part_to_access, m_query->part_num);
 #endif
 		}
+		
 		if (rc == Abort) {
 			uint64_t penalty = 0;
 			if (ABORT_PENALTY != 0)  {
@@ -196,14 +198,17 @@ RC thread_t::run() {
 			return FINISH;
 		}
 
-		if (warmup_finish && txn_cnt >= MAX_TXN_PER_PART) {
-			assert(txn_cnt == MAX_TXN_PER_PART);
-	        if( !ATOM_CAS(_wl->sim_done, false, true) )
-				assert( _wl->sim_done);
+		if (warmup_finish && txn_cnt >= g_max_txns_per_thread) {
+			assert(txn_cnt == g_max_txns_per_thread);
+			ATOM_ADD_FETCH(_wl->sim_done, 1);
+
+			uint64_t terminate_time = get_sys_clock(); 
+			printf("sim_done = %d\n", _wl->sim_done);
+
+	        // if( !ATOM_CAS(_wl->sim_done, false, true) )
+			// 	assert( _wl->sim_done);
+			return FINISH;
 	    }
-	    if (_wl->sim_done) {
-   		    return FINISH;
-   		}
 	}
 	assert(false);
 }

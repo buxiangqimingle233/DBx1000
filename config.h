@@ -13,14 +13,17 @@
 // CPU_FREQ is used to get accurate timing info 
 #define CPU_FREQ 					2 	// in GHz/s
 
+#define MAX_TXNS_PER_THREAD			10000
+
 // # of transactions to run for warmup
 #define WARMUP						0
 // YCSB or TPCC
-#define WORKLOAD 					YCSB
+#define WORKLOAD 					TPCC
 // print the transaction latency distribution
 #define PRT_LAT_DISTR				false
 #define STATS_ENABLE				true
 #define TIME_ENABLE					true 
+
 
 #define MEM_ALLIGN					8 
 
@@ -35,11 +38,58 @@
 #define NO_FREE						false
 
 /***********************************************/
+// Logging Method
+/***********************************************/
+// We only support Silo-style logging now
+
+/***********************************************/
+// Logging
+/***********************************************/
+#define LOG_REDO					false
+#define LOG_BATCH_TIME				10 // in ms
+
+#define LOG_NO						1
+#define LOG_SERIAL                  2
+#define LOG_BATCH                   3
+#define LOG_PARALLEL                4
+#define LOG_TAURUS					5
+#define LOG_PLOVER					6
+// Logging type
+#define LOG_DATA					1
+#define LOG_COMMAND					2
+
+#define SUPPORT_RECOVER				false
+// #define LOG_ALGORITHM				LOG_BATCH
+#define LOG_ALGORITHM				LOG_NO
+#define LOG_TYPE                    LOG_DATA
+#define LOG_RAM_DISK				false
+#define LOG_NO_FLUSH			 	false
+#define LOG_RECOVER                 false
+#define LOG_BATCH_TIME				10 // in ms
+#define LOG_GARBAGE_COLLECT         false
+#define LOG_BUFFER_SIZE				(1048576 * 50)	// in bytes
+#define ASYNC_IO					true
+#define FLUSH_BLOCK_SIZE			1048576 
+#define MAX_LOG_ENTRY_SIZE			16384 // in Bytes
+#define LOG_CHUNK_SIZE 				1048576 * 10
+#define LOG_FLUSH_INTERVAL 			0
+
+// #define AFFINITY true 
+#define AFFINITY false				// affinity requires script probe of cpu info
+
+#define NUM_LOGGER					1 // the number of loggers, one logger ?
+#define NUM_CORES_PER_SLOT 18
+#define NUMA_NODE_NUM 2
+#define HYPER_THREADING_FACTOR 2
+#define SOLVE_LIVELOCK true
+
+#define MAX_NUM_EPOCH 100000
+/***********************************************/
 // Concurrency Control
 /***********************************************/
 // WAIT_DIE, NO_WAIT, DL_DETECT, TIMESTAMP, MVCC, HEKATON, HSTORE, OCC, VLL, TICTOC, SILO
 // TODO TIMESTAMP does not work at this moment
-#define CC_ALG 						TICTOC
+#define CC_ALG 						OCC
 #define ISOLATION_LEVEL 			SERIALIZABLE
 
 // all transactions acquire tuples according to the primary key order.
@@ -95,13 +145,6 @@
 #define HSTORE_LOCAL_TS				false
 // [VLL] 
 #define TXN_QUEUE_SIZE_LIMIT		THREAD_CNT
-
-/***********************************************/
-// Logging
-/***********************************************/
-#define LOG_COMMAND					false
-#define LOG_REDO					false
-#define LOG_BATCH_TIME				10 // in ms
 
 /***********************************************/
 // Benchmark

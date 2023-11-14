@@ -2,6 +2,7 @@
 #include "row.h"
 #include "row_silo.h"
 
+
 #if CC_ALG == SILO
 
 RC
@@ -118,6 +119,7 @@ txn_man::validate_silo()
 		if (access->tid > max_tid)
 			max_tid = access->tid;
 	}
+	// Do we need to validate the write set ? 
 	// validate rows in the write set
 	for (int i = 0; i < wr_cnt; i++) {
 		Access * access = accesses[ write_set[i] ];
@@ -133,6 +135,9 @@ txn_man::validate_silo()
 		_cur_tid = max_tid + 1;
 	else 
 		_cur_tid ++;
+
+	make_log(rc);
+		
 final:
 	if (rc == Abort) {
 		for (int i = 0; i < num_locks; i++) 
