@@ -15,6 +15,7 @@
 
 RC tpcc_wl::init() {
 	workload::init();
+	next_tid = 0;
 	string path = "./benchmarks/";
 #if TPCC_SMALL
 	path += "TPCC_short_schema.txt";
@@ -25,7 +26,6 @@ RC tpcc_wl::init() {
 	init_schema( path.c_str() );
 	cout << "TPCC schema initialized" << endl;
 	init_table();
-	next_tid = 0;
 	return RCOK;
 }
 
