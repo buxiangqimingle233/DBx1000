@@ -44,6 +44,7 @@ public:
 	workload * h_wl;
 	myrand * mrand;
 	uint64_t abort_cnt;
+
 	RC make_log(RC rc);
 
 	virtual RC 		run_txn(base_query * m_query) = 0;

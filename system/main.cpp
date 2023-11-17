@@ -20,6 +20,7 @@ LoggingThread **logging_thds;
 
 // defined in parser.cpp
 void parser(int argc, char * argv[]);
+void print_val();
 
 /* HACK:
 	1. workloads (yasb_wl, tpcc_wl) store INDEX + row_t (manager + record), in the_index and the_table
@@ -37,6 +38,7 @@ int main(int argc, char* argv[])
 	uint64_t mainstart = get_sys_clock();
 	double mainstart_wallclock = get_wall_time();
 	parser(argc, argv);
+	print_val();
 	
 	mem_allocator.init(g_part_cnt, MEM_SIZE / g_part_cnt); 
 	stats.init();
@@ -216,7 +218,7 @@ int main(int argc, char* argv[])
 	cout << "Total wall time observed " << wall_time_observed << endl;
 	cout << "Estimated CPU_FREQ is " << (CPU_FREQ)*sys_time_observed / wall_time_observed << endl;
 
-	return 0;
+	return 0; 
 }
 
 void * f(void * id) {

@@ -39,7 +39,7 @@ void print_usage() {
 	printf("  [TEST]:\n");
 	printf("\t-Ar         ; Test READ_WRITE\n");
 	printf("\t-Ac         ; Test CONFLIT\n");
-	printf("  [LOGing]:\n");
+	printf("  [LOG]:\n");
 	printf("\t-LbINT      ; LOG_BUFFER_SIZE %lu\n", g_log_buffer_size);
 	printf("\t-LdINT	  ; MAX_LOG_ENTRY_SIZE %d\n", g_max_log_entry_size);
 	printf("\t-LeINT      ; MAX_NUM_EPOCH %lu\n", g_max_num_epoch);

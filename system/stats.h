@@ -16,6 +16,10 @@ public:
 	double time_cleanup;
 	uint64_t time_ts_alloc;
 	double time_query;
+
+	double time_log;
+	uint64_t log_abort_cnt;
+	
 	uint64_t wait_cnt;
 	uint64_t debug1;
 	uint64_t debug2;
@@ -38,7 +42,7 @@ public:
 	double time_wait;
 	char _pad[CL_SIZE - sizeof(double)*3];
 };
-
+ 
 class Stats {
 public:
 	// PER THREAD statistics

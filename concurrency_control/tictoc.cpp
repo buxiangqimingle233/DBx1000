@@ -232,7 +232,7 @@ final:
 			_max_wts = commit_wts;
 
 		// Do logging
-		make_log();
+		make_log(rc);
 
 		if (_write_copy_ptr) {
 			assert(false);

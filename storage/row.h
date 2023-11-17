@@ -43,7 +43,7 @@ public:
 	void init_manager(row_t * row);
 
 	table_t * get_table();
-	Catalog * get_schema();
+	Catalog * get_schema();                       
 	const char * get_table_name();
 	uint64_t get_field_cnt();
 	uint64_t get_tuple_size();

@@ -203,7 +203,8 @@ LogManager::logTxn(char * log_entry, uint32_t size, uint64_t epoch, bool sync)
 
 	//printf("TPCC log size: %d\n", size);
 	//COMPILER_BARRIER;
-	uint64_t starttime = get_sys_clock();
+	// uint64_t starttime = get_sys_clock();
+
 	if (*_lsn + size >= 
 		*_persistent_lsn + _log_buffer_size - g_max_log_entry_size * g_thread_cnt / g_num_logger) 
 	{
@@ -241,8 +242,9 @@ LogManager::logTxn(char * log_entry, uint32_t size, uint64_t epoch, bool sync)
 	} else {
 		memcpy(_buffer + lsn % _log_buffer_size, log_entry, size);
 	}
+
 	COMPILER_BARRIER
-	INC_INT_STATS(time_insideSLT1, get_sys_clock() - starttime);
+	// INC_INT_STATS(time_insideSLT1, get_sys_clock() - starttime);
 	
   #if LOG_ALGORITHM == LOG_BATCH
 	glob_manager->update_epoch_lsn_mapping(epoch, lsn);
@@ -256,7 +258,7 @@ LogManager::logTxn(char * log_entry, uint32_t size, uint64_t epoch, bool sync)
 
 		*(_filled_lsn[GET_THD_ID]) = lsn + size_aligned; 
 
-	INC_INT_STATS(time_insideSLT2, get_sys_clock() - starttime);
+	// INC_INT_STATS(time_insideSLT2, get_sys_clock() - starttime);
   	return lsn + size; // or it could be lsn+size_aligned-1
 }
 //#endif

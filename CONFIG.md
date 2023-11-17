@@ -24,6 +24,15 @@
     * WAIT_DIE, NO_WAIT, DL_DETECT: at cleanup, before roll-back
     * HEKATON, HSTORE, VLL
 
+# Experiment Setup
+* Contended TPC-C: 1 & 4 warehouses, 10% NewOrder and 15% Payment touch remote records
+* Uncontended TPC-C: 1 warehouse/thread, 10% NewOrder and 15% Payment touch remote records
+* Write-Intensive Conteded YCSB: 10M records * 100 bytes, 16 records per txn, Zipf=0.8, 95% write
+* Write-Intensive Uncontended YCSB: 10M records * 100 bytes, 16 records per txn, Zipf=0.0, 95% write
+* Read-Intensive Conteded YCSB: 10M records * 100 bytes, 16 records per txn, Zipf=0.8, 95% read
+* Read-Intensive Uncontended YCSB: 10M records * 100 bytes, 16 records per txn, Zipf=0.0, 95% read
+
+
 # Staring into the abyss: An evaluation of concurrency control with one thousand cores
 ## TPC-C
 
@@ -61,3 +70,7 @@
     * High contention: 1, 2, 4 warehouse
     * Low contention: 8, 16, 48 warehouse (one warehouse per thread)
 * Avg latency, P99 latency, P90, P50, throughput
+
+
+# Simulate Multiple Hosts
+* DBx1000-Distributed mode

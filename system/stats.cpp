@@ -30,6 +30,8 @@ void Stats_thd::clear() {
 	time_ts_alloc = 0;
 	latency = 0;
 	time_query = 0;
+	time_log = 0;
+	log_abort_cnt = 0;
 }
 
 void Stats_tmp::init() {
@@ -121,6 +123,8 @@ void Stats::print() {
 	double total_time_ts_alloc = 0;
 	double total_latency = 0;
 	double total_time_query = 0;
+	double total_time_log = 0;
+	uint64_t total_log_abort_cnt = 0;
 	for (uint64_t tid = 0; tid < g_thread_cnt; tid ++) {
 		total_txn_cnt += _stats[tid]->txn_cnt;
 		total_abort_cnt += _stats[tid]->abort_cnt;
@@ -138,6 +142,8 @@ void Stats::print() {
 		total_time_ts_alloc += _stats[tid]->time_ts_alloc;
 		total_latency += _stats[tid]->latency;
 		total_time_query += _stats[tid]->time_query;
+		total_time_log += _stats[tid]->time_log;
+		total_log_abort_cnt += _stats[tid]->log_abort_cnt;
 		
 		printf("[tid=%ld] txn_cnt=%ld,abort_cnt=%ld\n", 
 			tid,
@@ -152,7 +158,8 @@ void Stats::print() {
 			", run_time=%f, time_wait=%f, time_ts_alloc=%f"
 			", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
 			", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
-			", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f\n",
+			", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
+			", time_log=%f, log_abort_cnt=%ld", 
 			total_txn_cnt, 
 			total_abort_cnt,
 			total_run_time / BILLION,
@@ -172,7 +179,9 @@ void Stats::print() {
 			total_debug2, // / BILLION,
 			total_debug3, // / BILLION,
 			total_debug4, // / BILLION,
-			total_debug5 / BILLION
+			total_debug5 / BILLION,
+			total_time_log / BILLION,
+			total_log_abort_cnt
 		);
 		fclose(outf);
 	}
@@ -180,7 +189,8 @@ void Stats::print() {
 		", run_time=%f, time_wait=%f, time_ts_alloc=%f"
 		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
 		", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
-		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f\n", 
+		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
+		", time_log=%f, log_abort_cnt=%ld\n", 
 		total_txn_cnt, 
 		total_abort_cnt,
 		total_run_time / BILLION,
@@ -196,11 +206,13 @@ void Stats::print() {
 		dl_detect_time / BILLION,
 		dl_wait_time / BILLION,
 		total_time_query / BILLION,
-		total_debug1 / BILLION,
+		total_debug1, // / BILLION,
 		total_debug2, // / BILLION,
 		total_debug3, // / BILLION,
 		total_debug4, // / BILLION,
-		total_debug5  // / BILLION 
+		total_debug5 / BILLION,
+		total_time_log / BILLION,
+		total_log_abort_cnt
 	);
 	if (g_prt_lat_distr)
 		print_lat_distr();

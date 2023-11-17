@@ -39,7 +39,7 @@ RC txn_man::make_log(RC rc) {
 	// 
 	// Assumption: every write is actually an update. 
 	// predecessors store the TID of predecessor transactions. 
-	
+	uint64_t starttime = get_sys_clock();
 	uint32_t offset = 0;
 	uint32_t checksum = 0xbeef;  // we also use this to distinguish PSN items and log items
 	//uint32_t size = 0;
@@ -79,7 +79,12 @@ RC txn_man::make_log(RC rc) {
 	uint32_t logger_id = _worker_thd_id % g_num_logger;
 	uint64_t _persistent_epoch = glob_manager->get_epoch();	
 	uint64_t tid = log_manager[logger_id]->logTxn(_log_entry, _log_entry_size, _persistent_epoch);
+
+	uint64_t timespan = get_sys_clock() - starttime;
+	INC_STATS(get_thd_id(), time_log, timespan);
+
 	if (tid == (uint64_t)-1) {
+		INC_STATS(get_thd_id(), log_abort_cnt, 1);
 		return Abort;
 	}
 	return rc;

@@ -18,7 +18,7 @@
 // # of transactions to run for warmup
 #define WARMUP						0
 // YCSB or TPCC
-#define WORKLOAD 					TPCC
+#define WORKLOAD TPCC
 // print the transaction latency distribution
 #define PRT_LAT_DISTR				false
 #define STATS_ENABLE				true
@@ -59,8 +59,8 @@
 #define LOG_COMMAND					2
 
 #define SUPPORT_RECOVER				false
-// #define LOG_ALGORITHM				LOG_BATCH
-#define LOG_ALGORITHM				LOG_NO
+// #define LOG_ALGORITHM LOG_BATCH
+#define LOG_ALGORITHM LOG_BATCH
 #define LOG_TYPE                    LOG_DATA
 #define LOG_RAM_DISK				false
 #define LOG_NO_FLUSH			 	false
@@ -89,7 +89,7 @@
 /***********************************************/
 // WAIT_DIE, NO_WAIT, DL_DETECT, TIMESTAMP, MVCC, HEKATON, HSTORE, OCC, VLL, TICTOC, SILO
 // TODO TIMESTAMP does not work at this moment
-#define CC_ALG 						OCC
+#define CC_ALG OCC
 #define ISOLATION_LEVEL 			SERIALIZABLE
 
 // all transactions acquire tuples according to the primary key order.
