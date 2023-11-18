@@ -8,6 +8,17 @@
     a. thread_t::run() when getting timestamps
     b. row_t::manager states for version management states and locks
     c. txn_man::get_row() & row_t::get_row() when touching records
+5. Adding a stat: 
+    * Add field at Stats_thd / Stats_tmp 
+    * Stats_thd::init() / Stats_tmp::init() to initialize the field
+    * Stats::print(), create a collect variable, addup at the thread for-loop, print it
+
+# Add stats
+* SILO: manager::access (time_shared_row_cmt), manager::access->copy (time_shared_record)
+* TICTOC: manager::access (time_shared_row_cmt), manager::access->copy (time_shared_record)
+* OCC: manager::access (time_shared_row_cmt), manager::access->copy (time_shared_record)
+* MVCC: manager::access (time_shared_row_cmt), manager::access->copy (time_shared_record)
+* WAIT_DIE, NO_WAIT: manager::log_get (time_shared_row_cmt)
 
 
 # Add Logging

@@ -10,6 +10,7 @@ def parse_log(file_path):
     abort_count_total = 0
     run_time = 0
     time_parts = {}
+    # print(file_path)
     with open(file_path, 'r') as file:
         for line in file:
             config_match = re.search(r";\s*(\w+)\s+(\d+\.?\d*)", line)
@@ -28,13 +29,17 @@ def parse_log(file_path):
                 run_time = float(re.search(r"run_time=(\d+\.\d+)", line).group(1))
                 time_parts['time_wait'] = float(re.search(r"time_wait=(\d+\.\d+)", line).group(1))
                 time_parts['time_ts_alloc'] = float(re.search(r"time_ts_alloc=(\d+\.\d+)", line).group(1))
+                time_parts['time_record'] = float(re.search(r"time_shared_record=(\d+\.\d+)", line).group(1))
+                time_parts['time_metadata'] = float(re.search(r"time_shared_metadata=(\d+\.\d+)", line).group(1))
                 time_parts['time_man'] = float(re.search(r"time_man=(\d+\.\d+)", line).group(1))
                 time_parts['time_index'] = float(re.search(r"time_index=(\d+\.\d+)", line).group(1))
-                time_parts['time_abort'] = float(re.search(r"time_abort=(\d+\.\d+)", line).group(1))
+                # time_parts['time_abort'] = float(re.search(r"time_abort=(\d+\.\d+)", line).group(1))
                 time_parts['time_cleanup'] = float(re.search(r"time_cleanup=(\d+\.\d+)", line).group(1))
                 time_parts['time_query'] = float(re.search(r"time_query=(\d+\.\d+)", line).group(1))
+                time_parts['time_log'] = float(re.search(r"time_log=(\d+\.\d+)", line).group(1))
 
     return config_info, txn_count_total, abort_count_total, run_time, time_parts
+
 
 def find_log_files(directory):
     log_files = []
@@ -43,18 +48,21 @@ def find_log_files(directory):
             log_files.append(filename)
     return log_files
 
+
 def legalization_time(time_parts, run_time):
     # legalization
     summation = sum(time_parts.values())
-
-    # FIXME: usework may be negative
     time_parts['useful_work'] = max(0, run_time - summation)
+    for k, v in time_parts.items():
+        time_parts[k] = v / max(runtime, summation)
+    # FIXME: usework may be negative
     assert time_parts['useful_work'] >= 0
 
 
 def draw_figures(log_data, title):
     categories = list(next(iter(log_data.values())).keys())
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#000000', '#ff7f0e']
+    # colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#000000', '#ff7f0e']
+    colors = plt.cm.tab20(np.linspace(0, 1, len(categories)))
 
     type_names = list(log_data.keys())
     type_values = np.zeros((len(categories), len(type_names)))

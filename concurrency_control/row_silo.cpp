@@ -2,6 +2,7 @@
 #include "row.h"
 #include "row_silo.h"
 #include "mem_alloc.h"
+#include "manager.h"
 
 #if CC_ALG==SILO
 
@@ -29,7 +30,8 @@ Row_silo::access(txn_man * txn, TsType type, row_t * local_row) {
 			PAUSE
 			v = _tid_word;
 		}
-		local_row->copy(_row);
+		// local_row->copy(_row);
+		PROFILE_VOID(time_shared_record, local_row->copy, _row);
 		COMPILER_BARRIER
 		v2 = _tid_word;
 	} 

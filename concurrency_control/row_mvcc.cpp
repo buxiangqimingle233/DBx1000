@@ -106,7 +106,6 @@ uint64_t t1 = get_sys_clock();
 			PAUSE
 		//pthread_mutex_lock( latch );
 uint64_t t2 = get_sys_clock();
-INC_STATS(txn->get_thd_id(), debug4, t2 - t1);
 
 #if DEBUG_CC
 	for (uint32_t i = 0; i < _req_len; i++)
@@ -164,7 +163,8 @@ INC_STATS(txn->get_thd_id(), debug4, t2 - t1);
 			rc = RCOK;
 			row_t * res_row = reserveRow(ts, txn);
 			assert(res_row);
-			res_row->copy(_latest_row);
+			// res_row->copy(_latest_row);
+			PROFILE_VOID(time_shared_record, res_row->copy, _latest_row);
 			txn->cur_row = res_row;
 		}
 	} else if (type == W_REQ) {

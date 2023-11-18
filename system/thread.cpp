@@ -35,6 +35,7 @@ RC thread_t::run() {
 #if !NOGRAPHITE
 	_thd_id = CarbonGetTileId();
 #endif
+	glob_manager->set_thd_id(get_thd_id());
 	if (warmup_finish) {
 		mem_allocator.register_thread(_thd_id);
 	}
@@ -192,7 +193,7 @@ RC thread_t::run() {
 
 		if (rc == FINISH)
 			return rc;
-		if (!warmup_finish && txn_cnt >= WARMUP / g_thread_cnt) 
+		if (!warmup_finish && txn_cnt >= WARMUP / g_thread_cnt)
 		{
 			stats.clear( get_thd_id() );
 			return FINISH;

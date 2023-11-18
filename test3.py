@@ -15,7 +15,7 @@ jobs = {}
 dbms_cfg = ["config-std.h", "config.h"]
 
 # Compiling parameters
-cc_algo = ['WAIT_DIE', 'NO_WAIT', 'HEKATON', 'SILO', 'TICTOC', "HSTORE", "OCC"]
+cc_algo = ['WAIT_DIE', 'NO_WAIT', 'HEKATON', 'SILO', 'TICTOC', "MVCC", "OCC"]
 log_algo = ['LOG_NO', 'LOG_BATCH']
 
 
@@ -24,18 +24,26 @@ log_algo = ['LOG_NO', 'LOG_BATCH']
 # THREAD_CNT, MAX_TXNS_PER_THREAD, NUM_LOGGER, NUM_WH(TPCC)
 # READ_PERC(YCSB), WRITE_PERC(YCSB), ZIPF_THETA(YCSB), REQ_PER_QUERY(YCSB), ROW_CNT(YCSB)
 tpcc_args = {
-    "WH1": '-t16 -Gx1000 -Ln4 -n1 -r0.9 -w0.1 -z0 -R16 -s10485760',
-    "WH4": '-t16 -Gx1000 -Ln4 -n4 -r0.9 -w0.1 -z0 -R16 -s10485760',
-    "WH16": '-t16 -Gx1000 -Ln4 -n16 -r0.9 -w0.1 -z0 -R16 -s10485760',
+    "WH1": '-t48 -Gx1000 -Ln4 -n1 -r0.9 -w0.1 -z0 -R16 -s10485760',
+    "WH12": '-t48 -Gx1000 -Ln4 -n12 -r0.9 -w0.1 -z0 -R16 -s10485760',
+    "WH48": '-t48 -Gx1000 -Ln4 -n48 -r0.9 -w0.1 -z0 -R16 -s10485760',
 }
-    
+
 # contended TPCC (1:16), contended TPCC (1:4), uncontended TPCC (1:1)
 ycsb_args = {
-    "UCR": '-t16 -Gx1000 -Ln4 -n1 -r0.95 -w0.05 -z0 -R16 -s10485760',
-    "CR": '-t16 -Gx1000 -Ln4 -n1 -r0.95 -w0.05 -z0.8 -R16 -s10485760', 
-    "UCW": '-t16 -Gx1000 -Ln4 -n1 -r0.05 -w0.95 -z0 -R16 -s10485760', 
-    "CW": '-t16 -Gx1000 -Ln4 -n1 -r0.05 -w0.95 -z0.8 -R16 -s10485760', 
+    "UCR": '-t48 -Gx1000 -Ln4 -n1 -r0.95 -w0.05 -z0 -R16 -s10485760',
+    "CR": '-t48 -Gx1000 -Ln4 -n1 -r0.95 -w0.05 -z0.8 -R16 -s10485760', 
+    "UCW": '-t48 -Gx1000 -Ln4 -n1 -r0.05 -w0.95 -z0 -R16 -s10485760', 
+    "CW": '-t48 -Gx1000 -Ln4 -n1 -r0.05 -w0.95 -z0.8 -R16 -s10485760', 
 }   # Write-Intensive Uncontended, Write-Intensive Conteded, Read-Intensive Contended, Read-Intensive Uncontended
+
+def get_cpu_freq():
+    res = subprocess.check_output('lscpu', shell=True).decode().split('@')[1].strip()
+    res = float(res.split('GHz')[0])
+    print('Using CPU_FREQ', res)
+    return res
+
+CPU_FREQ = get_cpu_freq()
 
 
 def insert_job(cc_algo, log_algo, workload):
@@ -43,14 +51,16 @@ def insert_job(cc_algo, log_algo, workload):
             "WORKLOAD": workload,
             "CC_ALG": cc_algo,
             "LOG_ALGORITHM": log_algo,
+            "CPU_FREQ": CPU_FREQ,
         }
+
 
 def get_exec_name(job):
     return "rundb_" + job['WORKLOAD'] + "_" + job['CC_ALG'] + "_" + job['LOG_ALGORITHM']
 
-def get_log_name(job, exec_name):
-    return get_exec_name(job) + "_" + exec_name + ".log"
 
+def get_log_name(job, wl_name):
+    return "rundb_" + job['WORKLOAD'] + "_" + wl_name + "_" + job['CC_ALG'] + "_" + job['LOG_ALGORITHM'] + ".log"
 
 def test_compile(job):
     print("Starting compilation for job: {}".format(job))
@@ -97,7 +107,7 @@ def test_run(test='', job=None):
         print("Executing command: {}".format(cmd))
         start = datetime.datetime.now()
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        timeout = 10 # in seconds
+        timeout = 60 # in seconds
         while process.poll() is None:
             time.sleep(1)
             now = datetime.datetime.now()

@@ -2,6 +2,7 @@
 #include "row.h"
 #include "txn.h"
 #include "mem_alloc.h"
+#include "manager.h"
 #include <mm_malloc.h>
 
 #if CC_ALG==TICTOC
@@ -39,7 +40,8 @@ Row_tictoc::access(txn_man * txn, TsType type, row_t * local_row)
 			PAUSE
 			v = _ts_word;
 		}
-		local_row->copy(_row);
+		// local_row->copy(_row);
+		PROFILE_VOID(time_shared_record, local_row->copy, _row);
 		COMPILER_BARRIER
 		v2 = _ts_word;
   #if WRITE_PERMISSION_LOCK

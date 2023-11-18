@@ -12,6 +12,7 @@
 #include "txn.h"
 #include "mem_alloc.h"
 #include "tpcc_const.h"
+#include "manager.h"
 
 RC tpcc_wl::init() {
 	workload::init();
@@ -393,6 +394,8 @@ void * tpcc_wl::threadInitWarehouse(void * This) {
 	assert((uint64_t)tid < g_num_wh);
 	srand48_r(wid, tpcc_buffer[tid]);
 	
+	glob_manager->set_thd_id(tid);
+
 	if (tid == 0)
 		wl->init_tab_item();
 	wl->init_tab_wh( wid );

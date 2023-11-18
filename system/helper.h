@@ -106,9 +106,14 @@
 	if (STATS_ENABLE) \
 		stats._stats[tid]->name += value;
 
+#define INC_TMP_STATS(tid, name, value) INC_STATS(tid, name, value)
+
+/*
 #define INC_TMP_STATS(tid, name, value) \
 	if (STATS_ENABLE) \
 		stats.tmp_stats[tid]->name += value;
+*/
+
 
 #define INC_GLOB_STATS(name, value) \
 	if (STATS_ENABLE) \
@@ -263,6 +268,19 @@ public:
 private:
 	uint64_t seed;
 };
+
+#define PROFILE_VOID(stat_name, func, ...) do { \
+    uint64_t starttime = get_sys_clock(); \
+    func(__VA_ARGS__); \
+    INC_STATS(GET_THD_ID, stat_name, get_sys_clock() - starttime); \
+} while(0)
+
+#define PROFILE_RET(stat_name, func, ...) ({ \
+    uint64_t starttime = get_sys_clock(); \
+    auto result = func(__VA_ARGS__); \
+    INC_STATS(GET_THD_ID, stat_name, get_sys_clock() - starttime); \
+    result; \
+})
 
 inline void set_affinity(uint64_t thd_id) {
 	return;

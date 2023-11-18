@@ -32,6 +32,9 @@ void Stats_thd::clear() {
 	time_query = 0;
 	time_log = 0;
 	log_abort_cnt = 0;
+
+	time_shared_row_cmt = 0;
+	time_shared_record = 0;
 }
 
 void Stats_tmp::init() {
@@ -105,6 +108,15 @@ void Stats::abort(uint64_t thd_id) {
 		tmp_stats[thd_id]->init();
 }
 
+/*
+run_time: commit + abort 总时间
+time_abort: TP, abort txn 不包括 access shared data 的时间 (cleanup中abort所消耗的 时间) [ NO USE ]
+time_shared_record：TS, commit + abort 中总计 access record 时间
+time_shared_metadata: TS, commit + abort 中总计 access metadata 时间
+time_man: TP, 在 Concurrency Control 中的并行部分（Thread-Private Works, e.g. allocate buffers), exec & validate
+time_cleanup: TP, commit + abort, 调用 clean_up 的时间
+*/
+
 void Stats::print() {
 	
 	uint64_t total_txn_cnt = 0;
@@ -125,6 +137,10 @@ void Stats::print() {
 	double total_time_query = 0;
 	double total_time_log = 0;
 	uint64_t total_log_abort_cnt = 0;
+	double total_time_shared_record = 0;
+	double total_time_shared_row_cmt = 0;
+	double total_time_shared_row_abort = 0;
+
 	for (uint64_t tid = 0; tid < g_thread_cnt; tid ++) {
 		total_txn_cnt += _stats[tid]->txn_cnt;
 		total_abort_cnt += _stats[tid]->abort_cnt;
@@ -144,7 +160,10 @@ void Stats::print() {
 		total_time_query += _stats[tid]->time_query;
 		total_time_log += _stats[tid]->time_log;
 		total_log_abort_cnt += _stats[tid]->log_abort_cnt;
-		
+		total_time_shared_record += _stats[tid]->time_shared_record;
+		total_time_shared_row_cmt += _stats[tid]->time_shared_row_cmt;
+		total_time_shared_row_abort += _stats[tid]->time_shared_row_abort;
+
 		printf("[tid=%ld] txn_cnt=%ld,abort_cnt=%ld\n", 
 			tid,
 			_stats[tid]->txn_cnt,
@@ -155,61 +174,66 @@ void Stats::print() {
 	if (output_file != NULL) {
 		outf = fopen(output_file, "w");
 		fprintf(outf, "[summary] txn_cnt=%ld, abort_cnt=%ld"
-			", run_time=%f, time_wait=%f, time_ts_alloc=%f"
-			", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
-			", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
-			", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
-			", time_log=%f, log_abort_cnt=%ld", 
-			total_txn_cnt, 
-			total_abort_cnt,
-			total_run_time / BILLION,
-			total_time_wait / BILLION,
-			total_time_ts_alloc / BILLION,
-			(total_time_man - total_time_wait) / BILLION,
-			total_time_index / BILLION,
-			total_time_abort / BILLION,
-			total_time_cleanup / BILLION,
-			total_latency / BILLION / total_txn_cnt,
-			deadlock,
-			cycle_detect,
-			dl_detect_time / BILLION,
-			dl_wait_time / BILLION,
-			total_time_query / BILLION,
-			total_debug1, // / BILLION,
-			total_debug2, // / BILLION,
-			total_debug3, // / BILLION,
-			total_debug4, // / BILLION,
-			total_debug5 / BILLION,
-			total_time_log / BILLION,
-			total_log_abort_cnt
-		);
-		fclose(outf);
-	}
-	printf("[summary] txn_cnt=%ld, abort_cnt=%ld"
 		", run_time=%f, time_wait=%f, time_ts_alloc=%f"
+		", time_shared_record=%f, time_shared_metadata=%f"
 		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
 		", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
 		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
-		", time_log=%f, log_abort_cnt=%ld\n", 
+		", time_log=%f, log_abort_cnt=%ld", 
 		total_txn_cnt, 
 		total_abort_cnt,
 		total_run_time / BILLION,
 		total_time_wait / BILLION,
 		total_time_ts_alloc / BILLION,
-		(total_time_man - total_time_wait) / BILLION,
-		total_time_index / BILLION,
-		total_time_abort / BILLION,
-		total_time_cleanup / BILLION,
+		total_time_shared_record / BILLION,
+		(total_time_shared_row_cmt + total_time_shared_row_abort - total_time_shared_record) / BILLION,
+		(total_time_man - total_time_wait - total_time_shared_row_cmt - total_time_cleanup) / BILLION,
+		total_time_index / BILLION, 
+		(total_time_abort - total_time_shared_row_abort) / BILLION,
+		(total_time_cleanup - total_time_shared_row_abort) / BILLION,
 		total_latency / BILLION / total_txn_cnt,
 		deadlock,
 		cycle_detect,
 		dl_detect_time / BILLION,
 		dl_wait_time / BILLION,
 		total_time_query / BILLION,
-		total_debug1, // / BILLION,
-		total_debug2, // / BILLION,
+		total_debug1 / BILLION, // / BILLION,
+		total_debug2 /  BILLION, // / BILLION,
 		total_debug3, // / BILLION,
 		total_debug4, // / BILLION,
+		total_debug5 / BILLION,
+		total_time_log / BILLION,
+		total_log_abort_cnt);
+		fclose(outf);
+	}
+	printf("[summary] txn_cnt=%ld, abort_cnt=%ld"
+		", run_time=%f, time_wait=%f, time_ts_alloc=%f"
+		", time_shared_record=%f, time_shared_metadata=%f"
+		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
+		", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
+		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
+		", time_log=%f, log_abort_cnt=%ld", 
+		total_txn_cnt, 
+		total_abort_cnt,
+		total_run_time / BILLION,
+		total_time_wait / BILLION,
+		total_time_ts_alloc / BILLION,
+		total_time_shared_record / BILLION,
+		(total_time_shared_row_cmt + total_time_shared_row_abort - total_time_shared_record) / BILLION,
+		(total_time_man - total_time_wait - total_time_shared_row_cmt - total_time_cleanup) / BILLION,
+		total_time_index / BILLION,
+		(total_time_abort) / BILLION,
+		(total_time_cleanup - total_time_shared_row_abort) / BILLION,
+		total_latency / BILLION / total_txn_cnt,
+		deadlock,
+		cycle_detect,
+		dl_detect_time / BILLION,
+		dl_wait_time / BILLION,
+		total_time_query / BILLION,
+		total_debug1 / BILLION, // / BILLION,
+		total_debug2 / BILLION, // / BILLION,
+		total_debug3, // / BILLION,
+		total_debug4 / BILLION, // / BILLION,
 		total_debug5 / BILLION,
 		total_time_log / BILLION,
 		total_log_abort_cnt

@@ -96,7 +96,8 @@ RC Row_hekaton::access(txn_man * txn, TsType type, row_t * row) {
 			_write_history[pre_id].end = txn->get_txn_id();
 			row_t * res_row = _write_history[id].row;
 			assert(res_row);
-			res_row->copy(_write_history[_his_latest].row);
+			// res_row->copy(_write_history[_his_latest].row);
+			PROFILE_VOID(time_shared_record, res_row->copy, _write_history[_his_latest].row);
 			txn->cur_row = res_row;
 		}
 	} else 
