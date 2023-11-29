@@ -9,7 +9,7 @@ jobs = {}
 dbms_cfg = ["config-std.h", "config.h"]
 
 # Compiling parameters
-cc_algo = ['WAIT_DIE', 'NO_WAIT', 'HEKATON', 'SILO', 'TICTOC', "HSTORE", "OCC"]
+cc_algo = ['WAIT_DIE', 'NO_WAIT', 'HEKATON', 'SILO', 'TICTOC', "MVCC", "OCC"]
 log_algo = ['LOG_NO', 'LOG_BATCH']
 
 # Execution parameters
@@ -59,7 +59,9 @@ def insert_job(cc_algo, log_algo, workload):
             "WORKLOAD": workload,
             "CC_ALG": cc_algo,
             "LOG_ALGORITHM": log_algo,
+            "CPU_FREQ": CPU_FREQ,
         }
+
 
 def get_exec_name(job):
     return "rundb_" + job['WORKLOAD'] + "_" + job['CC_ALG'] + "_" + job['LOG_ALGORITHM']

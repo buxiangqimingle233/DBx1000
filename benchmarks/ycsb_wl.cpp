@@ -108,6 +108,8 @@ void * ycsb_wl::init_table_slice() {
 	// set cpu affinity
 	set_affinity(tid);
 
+	glob_manager->set_thd_id(tid);
+	
 	mem_allocator.register_thread(tid);
 	RC rc;
 	assert(g_synth_table_size % g_init_parallelism == 0);

@@ -140,11 +140,11 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 #if CC_ALG == DL_DETECT
 	uint64_t * txnids;
 	int txncnt; 
-	rc = this->manager->lock_get(lt, txn, txnids, txncnt);	
+	// rc = this->manager->lock_get(lt, txn, txnids, txncnt);	
+	rc = PROFILE_RET(time_shared_row_cmt, this->manager->lock_get, lt, txn, txnids, txncnt);
 #else
-	SimAccessCXLType2();
-	rc = this->manager->lock_get(lt, txn);
-	SimAccessReset();
+	// rc = this->manager->lock_get(lt, txn);
+	rc = PROFILE_RET(time_shared_row_cmt, this->manager->lock_get, lt, txn);
 #endif
 
 	if (rc == RCOK) {
@@ -223,9 +223,13 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	txn->cur_row->init(get_table(), this->get_part_id());
   #endif
 
-	// TODO need to initialize the table/catalog information.
+	// TODO: need to initialize the table/catalog information.
 	TsType ts_type = (type == RD)? R_REQ : P_REQ; 
-	rc = this->manager->access(txn, ts_type, row);
+
+	// rc = this->manager->access(txn, ts_type, row);
+
+	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, ts_type, row);
+
 	if (rc == RCOK ) {
 		row = txn->cur_row;
 	} else if (rc == WAIT) {
@@ -245,14 +249,17 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	// OCC always make a local copy regardless of read or write
 	txn->cur_row = (row_t *) mem_allocator.alloc(sizeof(row_t), get_part_id());
 	txn->cur_row->init(get_table(), get_part_id());
-	rc = this->manager->access(txn, R_REQ);
+	// rc = this->manager->access(txn, R_REQ);
+
+	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, R_REQ);
 	row = txn->cur_row;
 	return rc;
 #elif CC_ALG == TICTOC || CC_ALG == SILO
 	// like OCC, tictoc also makes a local copy for each read/write
 	row->table = get_table();
 	TsType ts_type = (type == RD)? R_REQ : P_REQ; 
-	rc = this->manager->access(txn, ts_type, row);
+	// rc = this->manager->access(txn, ts_type, row);
+	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, ts_type, row);
 	return rc;
 #elif CC_ALG == HSTORE || CC_ALG == VLL
 	row = this;
@@ -275,9 +282,11 @@ void row_t::return_row(access_t type, txn_man * txn, row_t * row) {
 #if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == DL_DETECT
 	assert (row == NULL || row == this || type == XP);
 	if (ROLL_BACK && type == XP) {// recover from previous writes.
-		this->copy(row);
+		// this->copy(row);
+		PROFILE_VOID(time_shared_row_abort, this->copy, row);
 	}
-	this->manager->lock_release(txn);
+	// this->manager->lock_release(txn);
+	PROFILE_VOID(time_shared_row_abort, this->manager->lock_release, txn);
 #elif CC_ALG == TIMESTAMP || CC_ALG == MVCC 
 	// for RD or SCAN or XP, the row should be deleted.
 	// because all WR should be companied by a RD
@@ -289,17 +298,22 @@ void row_t::return_row(access_t type, txn_man * txn, row_t * row) {
 	}
   #endif
 	if (type == XP) {
-		this->manager->access(txn, XP_REQ, row);
+		// this->manager->access(txn, XP_REQ, row);
+		PROFILE_VOID(time_shared_row_abort, this->manager->access, txn, XP_REQ, row);
 	} else if (type == WR) {
 		assert (type == WR && row != NULL);
 		assert (row->get_schema() == this->get_schema());
-		RC rc = this->manager->access(txn, W_REQ, row);
+		// RC rc = this->manager->access(txn, W_REQ, row);
+		// PROFILE_VOID(time_shared_row_cmt, this->manager->access, txn, W_REQ, row);
+		RC rc = PROFILE_RET(time_shared_row_abort, this->manager->access, txn, W_REQ, row);
+
 		assert(rc == RCOK);
 	}
 #elif CC_ALG == OCC
 	assert (row != NULL);
 	if (type == WR)
-		manager->write( row, txn->end_ts );
+		// manager->write( row, txn->end_ts );
+		PROFILE_VOID(time_shared_row_abort, this->manager->write, row, txn->end_ts);
 	row->free_row();
 	mem_allocator.free(row, sizeof(row_t));
 	return;

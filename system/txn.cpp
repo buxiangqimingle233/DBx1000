@@ -14,7 +14,9 @@
 #include "log.h"
 
 RC txn_man::make_log(RC rc) {
-	// This function assumes every write row has already been locked, and will be released after logging finishes
+	// Calling this function means every write row has already been locked, 
+	// and the invokers will realease it after logging finishes
+	
 	if (RCOK != rc) return rc;
 	if (wr_cnt == 0) return rc;		// no need to make logs
 #if LOG_ALGORITHM == LOG_NO
@@ -39,6 +41,7 @@ RC txn_man::make_log(RC rc) {
 	// 
 	// Assumption: every write is actually an update. 
 	// predecessors store the TID of predecessor transactions. 
+
 	uint64_t starttime = get_sys_clock();
 	uint32_t offset = 0;
 	uint32_t checksum = 0xbeef;  // we also use this to distinguish PSN items and log items
@@ -160,6 +163,8 @@ void txn_man::cleanup(RC rc) {
 	make_log(rc);
 #endif
 
+	uint64_t starttime = get_sys_clock();
+
 	for (int rid = row_cnt - 1; rid >= 0; rid --) {
 		row_t * orig_r = accesses[rid]->orig_row;
 		access_t type = accesses[rid]->type;
@@ -179,8 +184,10 @@ void txn_man::cleanup(RC rc) {
 					CC_ALG == WAIT_DIE)) 
 		{
 			orig_r->return_row(type, this, accesses[rid]->orig_data);
+			// PROFILE_VOID(time_shared_row_cmt, orig_r->return_row, type, this, accesses[rid]->orig_data);
 		} else {
 			orig_r->return_row(type, this, accesses[rid]->data); 	// HACK: Pessimistic CC Release locks here
+			// PROFILE_VOID(time_shared_row_cmt, orig_r->return_row, type, this, accesses[rid]->data);
 		}	
 #if CC_ALG != TICTOC && CC_ALG != SILO
 		accesses[rid]->data = NULL;
@@ -204,6 +211,11 @@ void txn_man::cleanup(RC rc) {
 #if CC_ALG == DL_DETECT
 	dl_detector.clear_dep(get_txn_id());
 #endif
+	INC_STATS(get_thd_id(), time_cleanup, get_sys_clock() - starttime);
+	// if (rc == Abort) {
+	// 	INC_STATS(get_thd_id(), time_abort, get_sys_clock() - starttime);
+	// }
+
 }
 
 row_t * txn_man::get_row(row_t * row, access_t type) {
@@ -228,8 +240,8 @@ row_t * txn_man::get_row(row_t * row, access_t type) {
 	
 	rc = row->get_row(type, this, accesses[ row_cnt ]->data);
 
-
 	if (rc == Abort) {
+		INC_TMP_STATS(get_thd_id(), time_man, get_sys_clock() - starttime);
 		return NULL;
 	}
 	accesses[row_cnt]->type = type;
@@ -260,6 +272,7 @@ row_t * txn_man::get_row(row_t * row, access_t type) {
 		wr_cnt ++;
 
 	uint64_t timespan = get_sys_clock() - starttime;
+	INC_TMP_STATS(get_thd_id(), debug2, timespan);
 	INC_TMP_STATS(get_thd_id(), time_man, timespan);
 	return accesses[row_cnt - 1]->data;
 }
@@ -315,7 +328,7 @@ RC txn_man::finish(RC rc) {
 #endif
 	uint64_t timespan = get_sys_clock() - starttime;
 	INC_TMP_STATS(get_thd_id(), time_man,  timespan);
-	INC_STATS(get_thd_id(), time_cleanup,  timespan);
+	// INC_STATS(get_thd_id(), time_cleanup,  timespan);
 	return rc;
 }
 

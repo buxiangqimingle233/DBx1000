@@ -17,6 +17,10 @@ public:
 	uint64_t time_ts_alloc;
 	double time_query;
 
+	double time_shared_record;
+	double time_shared_row_cmt;
+	double time_shared_row_abort;
+
 	double time_log;
 	uint64_t log_abort_cnt;
 	

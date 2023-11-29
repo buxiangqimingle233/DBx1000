@@ -2,6 +2,7 @@
 #include "row.h"
 #include "row_occ.h"
 #include "mem_alloc.h"
+#include "manager.h"
 
 void 
 Row_occ::init(row_t * row) {
@@ -22,7 +23,8 @@ Row_occ::access(txn_man * txn, TsType type) {
 		if (txn->start_ts < wts)
 			rc = Abort;
 		else { 
-			txn->cur_row->copy(_row);
+			// txn->cur_row->copy(_row);
+			PROFILE_VOID(time_shared_record, txn->cur_row->copy, _row);
 			rc = RCOK;
 		}
 	} else 
@@ -44,7 +46,8 @@ Row_occ::validate(uint64_t ts) {
 
 void
 Row_occ::write(row_t * data, uint64_t ts) {
-	_row->copy(data);
+	// _row->copy(data);
+	PROFILE_VOID(time_shared_record, _row->copy, data);
 	if (PER_ROW_VALID) {
 		assert(ts > wts);
 		wts = ts;
