@@ -11,6 +11,7 @@
 #include "vll.h"
 #include "log.h"
 #include "logging_thread.h"
+#include "sim_api.h"
 
 void * f(void *);
 void * f_log(void *);
@@ -159,11 +160,6 @@ int main(int argc, char* argv[])
 #endif
 
 
-	// No corresponding codes here, see txn.cpp::batch_recover
-	
-	// spawn and run txns again.
-	int64_t starttime = get_server_clock();
-
 /* We do not consider recovering here
 	if (g_log_recover)
 	{
@@ -181,7 +177,12 @@ int main(int argc, char* argv[])
 		}
 	}
 */
+#ifdef SNIPER
+	SimRoiStart();
+#endif
 
+	// spawn and run txns again.
+	int64_t starttime = get_server_clock();
 	// Let's start working
 	for (uint32_t i = 0; i < thd_cnt - 1; i++) {
 		uint64_t vid = i;
@@ -203,7 +204,11 @@ int main(int argc, char* argv[])
 		for (uint32_t i = 0; i < g_num_logger; i++)
 			pthread_join(p_logs[i], NULL);
 	int64_t endtime = get_server_clock();
-	
+
+#ifdef SNIPER
+	SimRoiEnd();
+#endif
+
 	if (WORKLOAD != TEST) {
 		printf("PASS! SimTime = %ld (cycles)\n", endtime - starttime);
 		if (STATS_ENABLE)

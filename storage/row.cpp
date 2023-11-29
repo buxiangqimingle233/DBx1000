@@ -142,7 +142,9 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	int txncnt; 
 	rc = this->manager->lock_get(lt, txn, txnids, txncnt);	
 #else
+	SimAccessCXLType2();
 	rc = this->manager->lock_get(lt, txn);
+	SimAccessReset();
 #endif
 
 	if (rc == RCOK) {

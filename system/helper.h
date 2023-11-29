@@ -4,6 +4,7 @@
 #include <iostream>
 #include <stdint.h>
 #include "global.h"
+#include "sim_api.h"
 
 /************************************************/
 // for logging
@@ -224,6 +225,9 @@ inline double get_wall_time(){ // used to calibrate wrong CPU_FREQ
 
 extern timespec * res;
 inline uint64_t get_server_clock() {
+#ifdef SNIPER
+	return SimGetEmuTime();
+#endif
 #if defined(__i386__)
     uint64_t ret;
     __asm__ __volatile__("rdtsc" : "=A" (ret));
@@ -241,6 +245,10 @@ inline uint64_t get_server_clock() {
 }
 
 inline uint64_t get_sys_clock() {
+#ifdef SNIPER
+	// printf("TIME GET: %ld\n", SimGetEmuTime());
+	return SimGetEmuTime();
+#endif
 #ifndef NOGRAPHITE
 	static volatile uint64_t fake_clock = 0;
 	if (warmup_finish)
