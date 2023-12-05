@@ -1,18 +1,27 @@
 import os, sys, re, os.path
 import re
-import platform
 import subprocess, datetime, time, signal
+from tqdm import tqdm
 
 SNIPER=True
 
 jobs = {}
+failed_jobs = []
 dbms_cfg = ["config-std.h", "config.h"]
 
-# Compiling parameters
-cc_algo = ['WAIT_DIE', 'NO_WAIT', 'HEKATON', 'SILO', 'TICTOC', "MVCC", "OCC"]
-log_algo = ['LOG_NO', 'LOG_BATCH']
+# Args: Hardware Parameters
+# sniper_cxl_latencies = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 800, 1000]
+sniper_cxl_latencies = [0, 100, 200, 400, 800, 1600]
 
-# Execution parameters
+# Args: DB Algorithms
+# cc_algo = ['WAIT_DIE', 'NO_WAIT', 'HEKATON', 'SILO', 'TICTOC', "MVCC", "OCC"]
+# cc_algo = ["HSTORE"]
+cc_algo = ['WAIT_DIE', 'SILO']
+# log_algo = ['LOG_NO', 'LOG_BATCH']
+log_algo = ['LOG_BATCH']
+
+
+# Args: Workload Parameters
 if SNIPER: 
     # THREAD_CNT, MAX_TXNS_PER_THREAD, NUM_LOGGER, NUM_WH(TPCC)
     # READ_PERC(YCSB), WRITE_PERC(YCSB), ZIPF_THETA(YCSB), REQ_PER_QUERY(YCSB), ROW_CNT(YCSB)
@@ -21,7 +30,7 @@ if SNIPER:
         "WH4": '-t16 -Gx50 -Ln4 -n4 -r0.9 -w0.1 -z0 -R16 -s10485760',
         "WH16": '-t16 -Gx50 -Ln4 -n16 -r0.9 -w0.1 -z0 -R16 -s10485760',
     }
-        
+
     # contended TPCC (1:16), contended TPCC (1:4), uncontended TPCC (1:1)
     ycsb_args = {
         "UCR": '-t16 -Gx50 -Ln4 -n1 -r0.95 -w0.05 -z0 -R16 -s10485760',
@@ -35,7 +44,7 @@ else:
         "WH4": '-t16 -Gx1000 -Ln4 -n4 -r0.9 -w0.1 -z0 -R16 -s10485760',
         "WH16": '-t16 -Gx1000 -Ln4 -n16 -r0.9 -w0.1 -z0 -R16 -s10485760',
     }
-        
+
     # contended TPCC (1:16), contended TPCC (1:4), uncontended TPCC (1:1)
     ycsb_args = {
         "UCR": '-t16 -Gx1000 -Ln4 -n1 -r0.95 -w0.05 -z0 -R16 -s10485760',
@@ -43,6 +52,14 @@ else:
         "UCW": '-t16 -Gx1000 -Ln4 -n1 -r0.05 -w0.95 -z0 -R16 -s10485760', 
         "CW": '-t16 -Gx1000 -Ln4 -n1 -r0.05 -w0.95 -z0.8 -R16 -s10485760', 
     }   # Write-Intensive Uncontended, Write-Intensive Conteded, Read-Intensive Contended, Read-Intensive Uncontended
+
+def get_cpu_freq():
+    res = subprocess.check_output('lscpu', shell=True).decode().split('@')[1].strip()
+    res = float(res.split('GHz')[0])
+    print('Using CPU_FREQ', res)
+    return res
+
+CPU_FREQ = get_cpu_freq()
 
 
 def replace(filename, pattern, replacement):
@@ -55,22 +72,23 @@ def replace(filename, pattern, replacement):
         f.write(new_s)
 
 def insert_job(cc_algo, log_algo, workload):
-    jobs[workload + '_' + cc_algo + '_' + workload] = {
+    jobs[workload + '_' + cc_algo + '_' + workload + "_" + log_algo] = {
             "WORKLOAD": workload,
             "CC_ALG": cc_algo,
             "LOG_ALGORITHM": log_algo,
-            "CPU_FREQ": CPU_FREQ,
+            "CPU_FREQ": CPU_FREQ
         }
 
 
-def get_exec_name(job):
+def get_executable_name(job):
     return "rundb_" + job['WORKLOAD'] + "_" + job['CC_ALG'] + "_" + job['LOG_ALGORITHM']
 
-def get_log_name(job, run_args):
-    return get_exec_name(job) + "_" + run_args + ".log"
+def get_work_name(job, run_args, cache_coherence_latency=0):
+    if SNIPER:
+        return "sniper_" + get_executable_name(job) + "_" + run_args + "_CC_" + str(cache_coherence_latency)
+    else:
+        return "host_" + get_executable_name(job) + "_" + run_args
 
-def get_sniper_work_name(job, run_args):
-    return "sniper_" + get_exec_name(job) + "_" + run_args
 
 def test_compile(job, sniper=True):
     print("Starting compilation for job: {}".format(job))
@@ -90,8 +108,8 @@ def test_compile(job, sniper=True):
         print("ERROR in compiling job=")
         print(job)
         exit(0)
-    
-    new_exec_name = get_exec_name(job)
+
+    new_exec_name = get_executable_name(job)
     if os.path.exists("rundb"):
         os.rename("rundb", new_exec_name)
         print("Compiled executable renamed to: {}".format(new_exec_name))
@@ -102,40 +120,54 @@ def test_compile(job, sniper=True):
     print("PASS Compile\t\talg=%s,\tworkload=%s" % (job['CC_ALG'], job['WORKLOAD']))
 
 
-def run_script_in_docker_container(container_name, script):
+def run_script_in_docker_container(container_name, script, max_retries=3, timeout_seconds=240):
     # Check if the Docker container is running
     cmd = f"docker ps --filter name={container_name} --format '{{{{.Names}}}}'"
     output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
+
     # If the Docker container is running, run the script inside the Docker container
     if output == container_name:
-        cmd = f"docker exec -w {os.getcwd()} {container_name} {script}"
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        process.wait()
-        output, _ = process.communicate()
-        return output
+        for attempt in range(max_retries):
+            cmd = f"docker exec -w {os.getcwd()} {container_name} {script}"
+            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                # Wait for the process to complete or timeout
+                output, _ = process.communicate(timeout=timeout_seconds)
+                return output
+            except subprocess.TimeoutExpired:
+                print(f"Attempt {attempt + 1}: Command timed out. Retrying...")
+                process.kill()
+                process.wait()
+
+        # All attempts failed
+        print(f"All attempts failed for command: {cmd}")
+        print(f"Task Name: {script}")
+        return None
     else:
         print(f"The Docker container {container_name} is not running.")
+        return None
 
 
-def test_run(test='', job=None, sniper=True):
+def test_run(test='', job=None, sniper=True, sniper_cxl_latency=0):
 
     app_flags = ""
     if test == 'read_write':
         app_flags = "-Ar -t1"
     elif test == 'conflict':
         app_flags = "-Ac -t4"
-    
+
     if job['WORKLOAD'] == 'YCSB':
         args = ycsb_args
     elif job['WORKLOAD'] == 'TPCC':
         args = tpcc_args
 
+    # TODO: Traverse the args
     for name, arg in args.items():  # run in sniper mode
-        print("Running test: {}, for job: {}".format(test, get_log_name(job, name)))
-        
-        # Create working directory  
+        print("Running test: {}, for job: {}".format(test, get_work_name(job, name, sniper_cxl_latency)))
+
+        # Create working directory
         home = os.getcwd()
-        if sniper: 
+        if sniper:
             result_home = os.path.join(home, "sniper-results")
         else:
             result_home = os.path.join(home, "host-results")
@@ -143,29 +175,35 @@ def test_run(test='', job=None, sniper=True):
             os.mkdir(result_home)
 
         if sniper:  # run in sniper mode (in docker)
-            result_dir = os.path.join(result_home, get_sniper_work_name(job, name))
+            result_dir = os.path.join(result_home, get_work_name(job, name, sniper_cxl_latency))
             if not os.path.exists(result_dir):
                 os.mkdir(result_dir)
 
             assert os.getenv("SNIPER_ROOT") != None, "SNIPER_ROOT is not set!"
             SNIPER_ROOT = os.getenv("SNIPER_ROOT")
             sniper_bin = os.path.join(SNIPER_ROOT, "run-sniper")
-            sniper_config = os.path.join(SNIPER_ROOT, "config/cxl_asplos.cfg")
+
+            # COPY TO CWD
+            # sniper_config = os.path.join(SNIPER_ROOT, "config/cxl_asplos.cfg")
+            sniper_config = os.path.join(home, "cxl_asplos.cfg")
 
             recorder_args = []
             recorder_args += ["--no-cache-warming", "-d", result_dir, "--cache-only", "-n", 32]
             recorder_args += ["--roi"]
             recorder_args += ["-c", sniper_config]
+            recorder_args += ["-g", f"perf_model/cxl/cxl_cache_roundtrip={sniper_cxl_latency}"]
 
-            cmd = sniper_bin + " " + " ".join(map(str, recorder_args)) + " -- " + os.path.join(home, get_exec_name(job)) + ' ' + arg
-            # print("Executing command: {}".format(cmd))
+            cmd = sniper_bin + " " + " ".join(map(str, recorder_args)) + " -- " + os.path.join(home, get_executable_name(job)) + ' ' + arg
+            print("Executing command: {}".format(cmd))
             output = run_script_in_docker_container("docker_sniper-dev-container_1", cmd)
 
+            if output is None:
+                continue
             # process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             # process.wait()
-            
+
         else:   # run in host mode
-            cmd = "./" + get_exec_name(job) + ' ' + arg
+            cmd = "./" + get_executable_name(job) + ' ' + arg
 
             print("Executing command: {}".format(cmd))
             start = datetime.datetime.now()
@@ -180,8 +218,8 @@ def test_run(test='', job=None, sniper=True):
                     print("ERROR. Timeout cmd=%s" % cmd)
                     exit(0)
             output, _ = process.communicate()
- 
-        with open(os.path.join(result_home, get_log_name(job, name)), "w") as f:
+
+        with open(os.path.join(result_home, get_work_name(job, name, sniper_cxl_latency) + ".log"), "w") as f:
             f.write(output.decode())
 
         if "PASS" in output.decode():
@@ -196,29 +234,42 @@ def test_run(test='', job=None, sniper=True):
             exit(0)
 
 
-def run_all_test(jobs):
-    for jobname, job in jobs.items():
-        # test_compile(job, sniper=SNIPER)
-        if job['WORKLOAD'] == 'TEST':
-            test_run('read_write', job, sniper=SNIPER)
-        else:
-            test_run('', job)
-            pass
-    jobs = {}
+def run_all_test(benchmarks=['YCSB', 'TPCC'], specific_script=None):
+    """
+    Run specified benchmarks.
 
-# run YCSB tests
-jobs = {}
-for cc in cc_algo:
-    for log in log_algo: 
-        insert_job(cc, log, 'YCSB')
-run_all_test(jobs)
+    :param benchmarks: List of benchmarks to run, default is ['YCSB', 'TPCC'].
+    :param specific_script: Optional string of the script command to run a specific task.
+    """
+    container_name = "docker_sniper-dev-container_1"
 
-# run TPCC tests
-jobs = {}
-for cc in cc_algo:
-    for log in log_algo: 
-        insert_job(cc, log, 'TPCC')
-run_all_test(jobs)
+    if specific_script:
+        output = run_script_in_docker_container(container_name, specific_script)
+        if output is not None:
+            print(output.decode())
+        return
 
+    total_jobs = len(benchmarks) * len(cc_algo) * len(log_algo) * len(sniper_cxl_latencies)
+    progress_bar = tqdm(total=total_jobs, desc="Running Benchmarks", unit="job-latency")
+
+    # TODO: traverse executables
+    for benchmark in benchmarks:
+        for cc in cc_algo:
+            for log in log_algo:
+                insert_job(cc, log, benchmark)
+
+        for jobname, job in jobs.items():
+            test_compile(job, sniper=SNIPER)
+            for cc_latency in sniper_cxl_latencies:
+                if job['WORKLOAD'] == 'TEST':
+                    test_run('read_write', job, sniper=SNIPER, sniper_cxl_latency=cc_latency)
+                else:
+                    test_run('', job, sniper=SNIPER, sniper_cxl_latency=cc_latency)
+                progress_bar.update(1)
+
+        # Clear the jobs dictionary after each benchmark
+        jobs.clear()
+
+run_all_test()
 os.system('make clean > temp.out 2>&1')
 os.system('rm temp.out')

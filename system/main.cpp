@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
 		}
 	}
 */
-#ifdef SNIPER
+#if SNIPER
 	SimRoiStart();
 #endif
 
@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
 			pthread_join(p_logs[i], NULL);
 	int64_t endtime = get_server_clock();
 
-#ifdef SNIPER
+#if SNIPER
 	SimRoiEnd();
 #endif
 

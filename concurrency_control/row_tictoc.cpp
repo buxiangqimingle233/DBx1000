@@ -41,7 +41,9 @@ Row_tictoc::access(txn_man * txn, TsType type, row_t * local_row)
 			v = _ts_word;
 		}
 		// local_row->copy(_row);
+		SimAccessCXLType3();
 		PROFILE_VOID(time_shared_record, local_row->copy, _row);
+		SimAccessReset();
 		COMPILER_BARRIER
 		v2 = _ts_word;
   #if WRITE_PERMISSION_LOCK

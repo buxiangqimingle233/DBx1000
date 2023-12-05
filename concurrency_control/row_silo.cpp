@@ -31,7 +31,9 @@ Row_silo::access(txn_man * txn, TsType type, row_t * local_row) {
 			v = _tid_word;
 		}
 		// local_row->copy(_row);
+		SimAccessCXLType3();
 		PROFILE_VOID(time_shared_record, local_row->copy, _row);
+		SimAccessReset();
 		COMPILER_BARRIER
 		v2 = _tid_word;
 	} 

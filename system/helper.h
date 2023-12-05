@@ -230,7 +230,7 @@ inline double get_wall_time(){ // used to calibrate wrong CPU_FREQ
 
 extern timespec * res;
 inline uint64_t get_server_clock() {
-#ifdef SNIPER
+#if SNIPER
 	return SimGetEmuTime();
 #endif
 #if defined(__i386__)
@@ -249,8 +249,29 @@ inline uint64_t get_server_clock() {
     return ret;
 }
 
+// This funtion always get the real time from host machine
+// It's used to prevent deadlocks when the module relies
+// on the CPU time for correctness (e.g. abort buffer retrieval)
+inline uint64_t get_real_clock() {
+#if defined(__i386__)
+    uint64_t ret;
+    __asm__ __volatile__("rdtsc" : "=A" (ret));
+#elif defined(__x86_64__)
+    unsigned hi, lo;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    uint64_t ret = ( (uint64_t)lo)|( ((uint64_t)hi)<<32 );
+	ret = (uint64_t) ((double)ret / CPU_FREQ);
+#else 
+	timespec * tp = new timespec;
+    clock_gettime(CLOCK_REALTIME, tp);
+    uint64_t ret = tp->tv_sec * 1000000000 + tp->tv_nsec;
+#endif
+	return ret;
+}
+
+
 inline uint64_t get_sys_clock() {
-#ifdef SNIPER
+#if SNIPER
 	// printf("TIME GET: %ld\n", SimGetEmuTime());
 	return SimGetEmuTime();
 #endif
@@ -276,6 +297,7 @@ public:
 private:
 	uint64_t seed;
 };
+
 
 #define PROFILE_VOID(stat_name, func, ...) do { \
     uint64_t starttime = get_sys_clock(); \

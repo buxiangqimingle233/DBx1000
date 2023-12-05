@@ -69,7 +69,7 @@ RC thread_t::run() {
 			if (_abort_buffer_enable) {
 				m_query = NULL;
 				while (trial < 2) {
-					ts_t curr_time = get_sys_clock();
+					ts_t curr_time = get_real_clock();
 					ts_t min_ready_time = UINT64_MAX;
 					if (_abort_buffer_empty_slots < _abort_buffer_size) {
 						for (int i = 0; i < _abort_buffer_size; i++) {
@@ -122,8 +122,9 @@ RC thread_t::run() {
 		if (WORKLOAD == TEST) {
 			uint64_t part_to_access[1] = {0};
 			rc = part_lock_man.lock(m_txn, &part_to_access[0], 1);
-		} else 
+		} else {
 			rc = part_lock_man.lock(m_txn, m_query->part_to_access, m_query->part_num);
+		}
 #elif CC_ALG == VLL
 		vll_man.vllMainLoop(m_txn, m_query);
 #elif CC_ALG == MVCC || CC_ALG == HEKATON
@@ -167,7 +168,7 @@ RC thread_t::run() {
 				for (int i = 0; i < _abort_buffer_size; i ++) {
 					if (_abort_buffer[i].query == NULL) {
 						_abort_buffer[i].query = m_query;
-						_abort_buffer[i].ready_time = get_sys_clock() + penalty;
+						_abort_buffer[i].ready_time = get_real_clock() + penalty;
 						_abort_buffer_empty_slots --;
 						break;
 					}
@@ -204,7 +205,6 @@ RC thread_t::run() {
 			ATOM_ADD_FETCH(_wl->sim_done, 1);
 
 			uint64_t terminate_time = get_sys_clock(); 
-			printf("sim_done = %d\n", _wl->sim_done);
 
 	        // if( !ATOM_CAS(_wl->sim_done, false, true) )
 			// 	assert( _wl->sim_done);
@@ -217,6 +217,7 @@ RC thread_t::run() {
 
 ts_t
 thread_t::get_next_ts() {
+	SimAccessCXLType2();
 	if (g_ts_batch_alloc) {
 		if (_curr_ts % g_ts_batch_num == 0) {
 			_curr_ts = glob_manager->get_ts(get_thd_id());
@@ -224,9 +225,11 @@ thread_t::get_next_ts() {
 		} else {
 			_curr_ts ++;
 		}
+		SimAccessReset();
 		return _curr_ts - 1;
 	} else {
 		_curr_ts = glob_manager->get_ts(get_thd_id());
+		SimAccessReset();
 		return _curr_ts;
 	}
 }

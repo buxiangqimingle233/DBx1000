@@ -84,6 +84,7 @@ void Plock::init() {
 }
 
 RC Plock::lock(txn_man * txn, uint64_t * parts, uint64_t part_cnt) {
+	SimAccessCXLType2();
 	RC rc = RCOK;
 	ts_t starttime = get_sys_clock();
 	UInt32 i;
@@ -100,6 +101,7 @@ RC Plock::lock(txn_man * txn, uint64_t * parts, uint64_t part_cnt) {
 		}
 		assert(txn->ready_part == 0);
 		INC_TMP_STATS(txn->get_thd_id(), time_man, get_sys_clock() - starttime);
+		SimAccessReset();
 		return Abort;
 	}
 	if (txn->ready_part > 0) {
@@ -109,14 +111,17 @@ RC Plock::lock(txn_man * txn, uint64_t * parts, uint64_t part_cnt) {
 	}
 	assert(txn->ready_part == 0);
 	INC_TMP_STATS(txn->get_thd_id(), time_man, get_sys_clock() - starttime);
+	SimAccessReset();
 	return RCOK;
 }
 
 void Plock::unlock(txn_man * txn, uint64_t * parts, uint64_t part_cnt) {
+	SimAccessCXLType2();
 	ts_t starttime = get_sys_clock();
 	for (UInt32 i = 0; i < part_cnt; i ++) {
 		uint64_t part_id = parts[i];
 		part_mans[part_id]->unlock(txn);
 	}
 	INC_TMP_STATS(txn->get_thd_id(), time_man, get_sys_clock() - starttime);
+	SimAccessReset();
 }

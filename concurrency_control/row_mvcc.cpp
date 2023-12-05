@@ -164,7 +164,9 @@ uint64_t t2 = get_sys_clock();
 			row_t * res_row = reserveRow(ts, txn);
 			assert(res_row);
 			// res_row->copy(_latest_row);
+			SimAccessCXLType3();
 			PROFILE_VOID(time_shared_record, res_row->copy, _latest_row);
+			SimAccessReset();
 			txn->cur_row = res_row;
 		}
 	} else if (type == W_REQ) {

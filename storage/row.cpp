@@ -133,6 +133,7 @@ void row_t::free_row() {
 }
 
 RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
+	SimAccessCXLType2();
 	RC rc = RCOK;
 #if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == DL_DETECT
 	uint64_t thd_id = txn->get_thd_id();
@@ -209,6 +210,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 		INC_TMP_STATS(thd_id, time_wait, endtime - starttime);
 		row = this;
 	}
+	SimAccessReset();
 	return rc;
 #elif CC_ALG == TIMESTAMP || CC_ALG == MVCC || CC_ALG == HEKATON 
 	uint64_t thd_id = txn->get_thd_id();
@@ -244,6 +246,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 		row->table = get_table();
 		assert(row->get_schema() == this->get_schema());
 	}
+	SimAccessReset();
 	return rc;
 #elif CC_ALG == OCC
 	// OCC always make a local copy regardless of read or write
@@ -253,6 +256,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 
 	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, R_REQ);
 	row = txn->cur_row;
+	SimAccessReset();
 	return rc;
 #elif CC_ALG == TICTOC || CC_ALG == SILO
 	// like OCC, tictoc also makes a local copy for each read/write
@@ -260,9 +264,11 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	TsType ts_type = (type == RD)? R_REQ : P_REQ; 
 	// rc = this->manager->access(txn, ts_type, row);
 	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, ts_type, row);
+	SimAccessReset();
 	return rc;
 #elif CC_ALG == HSTORE || CC_ALG == VLL
 	row = this;
+	SimAccessReset();
 	return rc;
 #else
 	assert(false);
@@ -279,6 +285,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 // Pessimistic CC algorithms (WAIT_DIE, NO_WAIT, DL_DETECT) leverage this function 
 // to release locks. 
 void row_t::return_row(access_t type, txn_man * txn, row_t * row) {	
+	SimAccessCXLType2();
 #if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == DL_DETECT
 	assert (row == NULL || row == this || type == XP);
 	if (ROLL_BACK && type == XP) {// recover from previous writes.
@@ -316,11 +323,14 @@ void row_t::return_row(access_t type, txn_man * txn, row_t * row) {
 		PROFILE_VOID(time_shared_row_abort, this->manager->write, row, txn->end_ts);
 	row->free_row();
 	mem_allocator.free(row, sizeof(row_t));
+	SimAccessReset();
 	return;
 #elif CC_ALG == TICTOC || CC_ALG == SILO
 	assert (row != NULL);
+	SimAccessReset();
 	return;
 #elif CC_ALG == HSTORE || CC_ALG == VLL
+	SimAccessReset();
 	return;
 #else 
 	assert(false);
