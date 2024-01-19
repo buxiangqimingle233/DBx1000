@@ -1,10 +1,11 @@
-import os, sys, re, os.path
-import re
+import os, os.path
 import subprocess, datetime, time, signal
 from tqdm import tqdm
-from helper import *
+import helper
+from helper import get_work_name, get_executable_name, get_result_home, replace_configs
 import itertools
 from experiments import experiment_map, DBMS_CFG
+import pickle
 
 def compile_binary(cfg):
     print("Starting compilation for job: {}".format(str(cfg)))
@@ -30,7 +31,7 @@ def compile_binary(cfg):
     print("PASS Compile\t\talg=%s,\tworkload=%s" % (cfg['CC_ALG'], cfg['WORKLOAD']))
 
 
-def run_script_in_docker_container(container_name, script, max_retries=3, timeout_seconds=240):
+def run_script_in_docker_container(container_name, script, max_retries=3, timeout_seconds=1800):
     # Check if the Docker container is running
     cmd = f"docker ps --filter name={container_name} --format '{{{{.Names}}}}'"
     output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
@@ -58,18 +59,18 @@ def run_script_in_docker_container(container_name, script, max_retries=3, timeou
         return None
 
 
-def run_binary(cfg: dict, arg: dict, env: dict, exp):
+def run_binary(cfg: dict, arg: dict, env: dict, exp, retry=0):
 
     sniper = env["SNIPER"]
     arg_value = " ".join(f"{key}{value}" for key, value in arg.items())
     work_name = get_work_name(cfg, arg, env)
+    result_home = get_result_home(cfg, arg, env, exp)
+    os.makedirs(result_home, exist_ok=True)
 
     print("Running test for job: {}".format(work_name))
 
     # Create working directory
     home = os.getcwd()
-    result_home = get_result_home(cfg, arg, env, exp)
-    os.makedirs(result_home, exist_ok=True)
 
     if sniper:  # run in sniper mode (in docker)
         result_dir = os.path.join(result_home, work_name)
@@ -83,15 +84,20 @@ def run_binary(cfg: dict, arg: dict, env: dict, exp):
         # COPY TO CWD
         SNIPER_CONFIG = env["SNIPER_CONFIG"]
         SNIPER_CXL_LATENCY = env["SNIPER_CXL_LATENCY"]
+        SNIPER_MEM_LATENCY = env["SNIPER_MEM_LATENCY"]
+
 
         recorder_args = []
-        recorder_args += ["--no-cache-warming", "-d", result_dir, "--cache-only", "-n", 32]
+        recorder_args += ["--no-cache-warming", "-d", result_dir, "--cache-only", "-n", 48]
+        # recorder_args += ["-d", result_dir, "-n", 32]
         recorder_args += ["--roi"]
         recorder_args += ["-c", SNIPER_CONFIG]
         recorder_args += ["-g", f"perf_model/cxl/cxl_cache_roundtrip={SNIPER_CXL_LATENCY}"]
+        recorder_args += ["-g", f"perf_model/cxl/cxl_mem_roundtrip={SNIPER_MEM_LATENCY}"]
 
         cmd = sniper_bin + " " + " ".join(map(str, recorder_args)) + " -- " + os.path.join(home, get_executable_name(cfg)) + ' ' + arg_value
         print("Executing command: {}".format(cmd))
+        output = run_script_in_docker_container("docker_sniper-dev-container_1", "pkill -f snipersim")
         output = run_script_in_docker_container("docker_sniper-dev-container_1", cmd)
         # process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         # process.wait()
@@ -102,7 +108,7 @@ def run_binary(cfg: dict, arg: dict, env: dict, exp):
         print("Executing command: {}".format(cmd))
         start = datetime.datetime.now()
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        timeout = 10 # in seconds
+        timeout = 100 # in seconds
         while process.poll() is None:
             time.sleep(1)
             now = datetime.datetime.now()
@@ -121,21 +127,61 @@ def run_binary(cfg: dict, arg: dict, env: dict, exp):
             (cfg["CC_ALG"], cfg["WORKLOAD"], work_name))
     else:
         print("FAILED execution. cmd = %s" % cmd)
-        exit(0)
+        if retry < 3:
+            print("Retrying: %s %sth..." % (cmd, retry))
+            run_binary(cfg, arg, env, exp, retry + 1)
+        else:
+            raise Exception("Failed to run the binary. cmd = %s" % cmd)
+        # exit(0)
+
+def load_state():
+    # Load the runtime state from a pickle file
+    with open('runtime_state.pkl', 'rb') as f:
+        state = pickle.load(f)
+    return state
 
 
-def run_all(exps):
-    cfgs, args, envs = experiment_map[exps]()
-    total_jobs = len(cfgs) * len(args) * len(envs)
-    progress_bar = tqdm(total=total_jobs, desc="Running Benchmarks", unit="config unit")
-    for cfg, arg, env, in itertools.product(cfgs, args, envs):
-        if env["SNIPER"]:
-            cfg["SNIPER"] = 1
-        compile_binary(cfg)
-        run_binary(cfg, arg, env, exps)
-        progress_bar.update(1)
+def run_all(exps, recover=False):
+    jumpto = 0
+    if recover:
+        assert os.path.exists('runtime_state.pkl'), "No runtime state found. Please run the script without the --recover flag."
+        state = load_state()
+        jumpto = int(state['cnt'])
+        helper.strnow = str(state['time'])
+    try:
+        cfgs, args, envs = experiment_map[exps]()
+        total_jobs = len(cfgs) * len(args) * len(envs)
+        progress_bar = tqdm(total=total_jobs, desc="Running Benchmarks", unit="config unit")
+        for cfg, arg, env, in itertools.product(cfgs, args, envs):
+            if env["SNIPER"]:
+                cfg["SNIPER"] = 1
+            if recover and progress_bar.n < jumpto:
+                progress_bar.update(1)
+                continue
+            compile_binary(cfg)
+            run_binary(cfg, arg, env, exps)
+            progress_bar.update(1)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Save the runtime state to a pickle file
+        with open('runtime_state.pkl', 'wb') as f:
+            pickle.dump({'cnt': progress_bar.n, 'time': helper.strnow}, f)
+        raise e
 
-run_all("hstore_network_sweep")
+
+import argparse
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Run an experiment.')
+    parser.add_argument('experiment', type=str, help='The name of the experiment to run')
+    parser.add_argument('--recover', action='store_true', help='Recover from a previous run')
+
+    args = parser.parse_args()
+
+    if args.experiment in experiment_map:
+        run_all(args.experiment, args.recover)
+    else:
+        print(f"Experiment {args.experiment} not found. Available experiments are: {list(experiment_map.keys())}")
 
 # os.system('make clean > temp.out 2>&1')
 # os.system('rm temp.out')

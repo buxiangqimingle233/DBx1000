@@ -26,7 +26,6 @@ Row_occ::access(txn_man * txn, TsType type) {
 			// txn->cur_row->copy(_row);
 			SimAccessCXLType3();
 			PROFILE_VOID(time_shared_record, txn->cur_row->copy, _row);
-			SimAccessReset();
 			rc = RCOK;
 		}
 	} else 

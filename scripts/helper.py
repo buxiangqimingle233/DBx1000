@@ -13,21 +13,35 @@ def get_executable_name(cfgs):
 
     return "rundb_" + cfgs['WORKLOAD'] + "_" + cfgs['CC_ALG'] + "_" + cfgs['LOG_ALGORITHM']
 
-def get_result_home(cfg, arg, env):
+def get_result_home(cfg, arg, env, exp, timestamp=strnow):
     home = os.path.join(os.getcwd())
     sniper = env["SNIPER"]
     if sniper:
-        result_home = os.path.join(home, "sniper-results")
+        result_home = os.path.join(home, "sniper-results", timestamp + "_" + exp)
     else:
-        result_home = os.path.join(home, "host-results")
+        result_home = os.path.join(home, "host-results", timestamp + "_" + exp)
     return result_home
 
 def get_work_name(cfg, arg, env):
     arg_value = "_".join(f"{key}{value}" for key, value in arg.items()) # TODO: really hard to read
     if env["SNIPER"]:
-        return "sniper_" + get_executable_name(cfg) + "_" + arg_value + "_CC_" + str(env["SNIPER_CXL_LATENCY"])
+        return strnow + "_" + "sniper_" + get_executable_name(cfg) + "_" + arg_value + "_CC_" + str(env["SNIPER_CXL_LATENCY"]) + "_MEM_" + str(env["SNIPER_MEM_LATENCY"])
     else:
-        return "host_" + get_executable_name(cfg) + "_" + arg_value
+        return strnow + "_" + "host_" + get_executable_name(cfg) + "_" + arg_value
+
+def get_log_path(cfg, arg, env, exp, timestamp):
+    result_home = get_result_home(cfg, arg, env, exp)
+    log_name = get_work_name(cfg, arg, env) + ".log"
+
+    # Replace the timestamp before the first "_" with the given one
+    result_home = re.sub(r'\d{8}-\d{6}', timestamp, result_home)
+    log_name = re.sub(r'\d{8}-\d{6}', timestamp, log_name)
+
+    return os.path.join(result_home, log_name)
+
+def get_sniper_result_dir(cfg, arg, env, exp, timestamp):
+    log_name = get_log_path(cfg, arg, env, exp, timestamp)
+    return log_name[:-4]
 
 # in cfgs: {name, value}
 def replace_configs(filename, cfgs):

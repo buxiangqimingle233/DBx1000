@@ -258,7 +258,8 @@ row_t * txn_man::get_row(row_t * row, access_t type) {
 #if ROLL_BACK && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE)
 	if (type == WR) {
 		accesses[row_cnt]->orig_data->table = row->get_table();
-		accesses[row_cnt]->orig_data->copy(row);
+		// accesses[row_cnt]->orig_data->copy(row);
+		PROFILE_VOID(time_shared_record, accesses[row_cnt]->orig_data->copy, row);
 	}
 #endif
 

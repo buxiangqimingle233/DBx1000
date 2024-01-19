@@ -1,4 +1,5 @@
 CC=g++
+# CFLAGS=-Wall -g -std=c++0x -static
 CFLAGS=-Wall -g -std=c++0x
 
 MODE=RELEASE

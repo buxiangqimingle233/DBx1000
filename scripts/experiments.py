@@ -34,16 +34,6 @@ host_ycsb_args = {
     "CW": '-t16 -Gx1000 -Ln4 -n1 -r0.05 -w0.95 -z0.8 -R16 -s10485760',
 }   # Write-Intensive Uncontended, Write-Intensive Conteded, Read-Intensive Contended, Read-Intensive Uncontended
 
-# Args: Hardware Parameters
-# sniper_cxl_latencies = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 800, 1000]
-sniper_cxl_latencies = [0, 100, 200, 400, 800, 1600]
-
-# Args: DB Algorithms
-# cc_algo = ['WAIT_DIE', 'NO_WAIT', 'HEKATON', 'SILO', 'TICTOC', "MVCC", "OCC"]
-# cc_algo = ["HSTORE"]
-cc_algo = ['WAIT_DIE', 'SILO']
-# log_algo = ['LOG_NO', 'LOG_BATCH']
-log_algo = ['LOG_BATCH']
 
 DBMS_CFG = ["config-std.h", "config.h"]
 
@@ -57,9 +47,10 @@ cfg_base = {
 
 env_base = {
     "SNIPER_ROOT": "/home/wangzhao/snipersim",
-    "SNIPER_CONFIG": "/home/wangzhao/experiments/DBx1000/cxl_asplos.cfg",
+    "SNIPER_CONFIG": "/home/wangzhao/experiments/DBx1000/cascade_lake.cfg",
     "SNIPER": 1,
-    "SNIPER_CXL_LATENCY": 0
+    "SNIPER_CXL_LATENCY": 0,
+    "SNIPER_MEM_LATENCY": 0,
 }
 
 arg_base = {
@@ -116,6 +107,7 @@ ARG_FLAG = {
     'g_num_disk': '-LD'
 }
 
+
 def format_configs(base, config):
     fmt, list_of_values = zip(*config)
     combinations = list(itertools.product(*list_of_values))
@@ -123,59 +115,255 @@ def format_configs(base, config):
     return formated_config
 
 
-def hstore_network_sweep():
+def format_configs_decorator(func):
+    def wrapper():
+        cfgs, args, envs = func()
+        cfgs, args, envs = format_configs(cfg_base, cfgs), format_configs(arg_base, args), format_configs(env_base, envs)
+        return cfgs, args, envs
+    return wrapper
+
+
+def format_configs_decorator_supplement_rw(func):
+    def wrapper():
+        cfgs, args, envs = func()
+        cfgs, args, envs = format_configs(cfg_base, cfgs), format_configs(arg_base, args), format_configs(env_base, envs)
+        for arg in args:
+            if "-r" in arg:
+                arg['-w'] = 1 - arg['-r']
+            elif "-w" in arg:
+                arg['-r'] = 1 - arg['-w']
+        return cfgs, args, envs
+    return wrapper
+
+
+def format_configs_decorator_filter_smp_cxl(func):
+    def wrapper():
+        cfgs, args, envs = func()
+        cfgs, args, envs = format_configs(cfg_base, cfgs), format_configs(arg_base, args), format_configs(env_base, envs)
+        for env in envs:
+            assert env['SNIPER'] == 1
+            if not ( (env['SNIPER_CXL_LATENCY'] == 0 and env['SNIPER_MEM_LATENCY'] == 0) or (env['SNIPER_CXL_LATENCY'] != 0 and env['SNIPER_MEM_LATENCY'] != 0)): # either both 0 or both non-zero
+                envs.remove(env)
+        return cfgs, args, envs
+    return wrapper
+
+
+@format_configs_decorator
+def SNA_multipartition():
     # DB configs
     cfgs = [
-        ("WORKLOAD", ['YCSB', 'TPCC']),
+        ("WORKLOAD", ['YCSB']),
         ("CC_ALG", ['HSTORE']),
     ]
 
     # Env configs
     envs = [
         ("SNIPER", [1]),
-        # ("SNIPER_CXL_LATENCY", [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]), # in ns
-        ("SNIPER_CXL_LATENCY", [0, 100, 200]), # in ns
+        ("SNIPER_CXL_LATENCY", [0, 400]), # in ns
+    ]
+
+    # Args configs
+    args = [
+        ("-r", [0.5, 0.9]),
+        ("-z", [0]),
+        # ("-c", [1,2,4,6,8,10,12,14,16]),
+        ("-c", [8]),
+        ("-p", [16]),
+        ("-v", [16]),
+        ("-e", [0, 0.2, 0.4, 0.6, 0.8, 1]),
+        ("-R", [16]),
+        ("-Gx", [500]),
+        ("-Ln", [4]),
+        ("-t", [16]),
+        ("-s", [2097152 * 16]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator
+def SNA_coherence_sweep_ref():
+    # DB configs
+    cfgs = [
+        ("WORKLOAD", ['YCSB']),
+        ("CC_ALG", ['HSTORE']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [0]),
     ]
 
     # Args configs
     args = [
         ("-w", [0.5]),
         ("-z", [0.6]),
-        ("-s", [10485760]),
-        ("-R", [16]),
-        ("-t", [16]),
-        ("-Gx", [50]),
+        ("-R", [10]),
+        ("-Gx", [1000]),
         ("-Ln", [4]),
-        ("-n", [1]),
-        ("-R", [16]),
-        ("-s", [10485760]),
-    ]
+        ("-t", [8]),
+        ("-s", [2097152 * 8]),
+    ]   # Same with Deneva
 
-    cfgs, args, envs = format_configs(cfg_base, cfgs), format_configs(arg_base, args), format_configs(env_base, envs)
     return cfgs, args, envs
 
-def hstore_network_sweep_plot():
-    cfgs, args, envs = hstore_network_sweep()
-    yvals = []
-    xvals = [env["SNIPER_CXL_LATENCY"] for env in envs]
-    vvals = [get_executable_name(cfg) for cfg in cfgs]
+@format_configs_decorator
+def SNA_coherence_sweep():
+    # DB configs
+    cfgs = [
+        ("WORKLOAD", ['YCSB']),
+        ("CC_ALG", ['HSTORE', 'NO_WAIT', 'WAIT_DIE', 'MVCC']),
+    ]
 
-    for cfg, arg in itertools.product(cfgs, args):
-        yvals_row = []
-        for env in envs:
-            result_home = get_result_home(cfg, arg, env)
-            log_name = get_work_name(cfg, arg, env) + ".log"
-            _, txn_cnt, _, run_time, _ = parse_log(os.path.join(result_home, log_name))
-            throughput = txn_cnt / (run_time / arg["-t"])
-            yvals_row.append(throughput)
-        yvals.append(yvals_row)
-    
-    print_csv(yvals, xvals, vvals)
-    draw_line_plot(yvals, xvals, vvals,  "HSTORE Network Sweep", "Throughput (txn/s)", "CXL Latency (ns)", "Benchmark", "./test.png")
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [0, 70, 100, 200, 400, 800, 1600]), # in ns
+    ]
+
+    # Args configs
+    args = [
+        ("-w", [0.5]),
+        ("-z", [0.6]),
+        ("-R", [10]),
+        ("-Gx", [50]),
+        ("-Ln", [4]),
+        ("-t", [8]),
+        ("-s", [2097152 * 8]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+@format_configs_decorator_supplement_rw
+def SDA_latency_breakdown():
+    # DB configs
+    cfgs = [
+        ("WORKLOAD", ['YCSB']),
+        ("CC_ALG", ['OCC']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+    ]
+
+    # YCSB Options
+    # 'PART_PER_TXN': '-c',
+    # 'PERC_MULTI_PART': '-e',
+    # 'READ_PERC': '-r',
+    # 'WRITE_PERC': '-w',
+    # 'ZIPF_THETA': '-z',
+    # 'SYNTH_TABLE_SIZE': '-s',
+    # 'REQ_PER_QUERY': '-R',
+    # 'FIELD_PER_TUPLE': '-f',
+
+# 0, 0.1, 0.2, 0.4
+    # Args configs
+    args = [
+        ("-p", [1]),   # No partitioning
+        ("-w", [0, 0.1, 0.2, 0.4]),
+        ("-z", [0, 0.5, 0.7]),    # Zipf: high contention, low contention
+        ("-R", [16]),        # Standard 16 req/txn
+        ("-Gx", [50]),
+        ("-Ln", [4]),
+        ("-t", [16]),
+        ("-s", [2097152 * 16]),
+    ]
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator_filter_smp_cxl
+def cxl_to_smp_slowdown_ycsb():
+    # DB configs
+    cfgs = [
+        ("WORKLOAD", ['YCSB']),
+        # ("CC_ALG", ['HEKATON', 'TICTOC', 'SILO']),
+        ("CC_ALG", ['OCC', 'NO_WAIT', 'WAIT_DIE', 'HEKATON', 'TICTOC', 'SILO']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [0, 246]), # in ns
+        ("SNIPER_MEM_LATENCY", [0, 170]), # in ns
+    ]
+
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-w", [0, 0.1, 0.4]),
+        ("-z", [0, 0.5]),
+        ("-R", [16]),
+        ("-Gx", [50]),
+        ("-Ln", [4]),
+        ("-t", [16]),
+        ("-s", [2097152 * 16]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator_filter_smp_cxl
+def cxl_to_smp_slowdown_tpcc():
+    # # DB configs
+    # cfgs = [
+    #     ("WORKLOAD", ['TPCC']),
+    #     ("CC_ALG", ["OCC", "SILO"]),
+    #     ("LOG_ALGORITHM", ['LOG_NO']),
+    # ]
+
+    # envs = [
+    #     ("SNIPER", [1]),
+    #     ("SNIPER_CXL_LATENCY", [0]), # in ns
+    #     ("SNIPER_MEM_LATENCY", [0]), # in ns
+    # ]
+
+    # # Args configs
+    # args = [
+    #     ("-p", [1]),
+    #     ("-n", [1, 16, 48]),
+    #     ("-Tp", [0.5, 1]),
+    #     ("-Gx", [50]),
+    #     ("-t", [48]),
+    #     ("-Ln", [1]),
+    # ]   # Same with Deneva
+
+    cfgs = [
+        ("WORKLOAD", ['TPCC']),
+        # ("CC_ALG", ['WAIT_DIE', 'NO_WAIT']),
+        # ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'HEKATON', 'TICTOC', 'SILO', 'MVCC']),
+        ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'TICTOC', 'SILO', 'MVCC']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [0, 246]), # in ns
+        ("SNIPER_MEM_LATENCY", [0, 170]), # in ns
+    ]
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-n", [1, 4, 8, 24, 48]),
+        ("-Tp", [0.5]),
+        ("-Gx", [50]),
+        ("-t", [48]),
+        ("-Ln", [1]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
 
 experiment_map = {
-    "hstore_network_sweep": hstore_network_sweep,
-    "hstore_network_sweep_plot": hstore_network_sweep_plot,
+    "SNA_coherence_sweep": SNA_coherence_sweep,
+    "SNA_coherence_sweep_ref": SNA_coherence_sweep_ref,
+    "SNA_multipartition": SNA_multipartition,
+    "SDA_latency_breakdown": SDA_latency_breakdown,
+    "cxl_to_smp_slowdown_ycsb": cxl_to_smp_slowdown_ycsb,
+    "cxl_to_smp_slowdown_tpcc": cxl_to_smp_slowdown_tpcc,
 }
-
-hstore_network_sweep_plot()

@@ -242,4 +242,10 @@ void parser(int argc, char * argv[]) {
 	}
 	if (g_thread_cnt < g_init_parallelism)
 		g_init_parallelism = g_thread_cnt;
+	
+	
+	if (g_read_perc + g_write_perc != 1) {
+		printf("WARNING: READ_PERC + WRITE_PERC != 1, set READ_PERC = 1 - WRITE_PERC\n");
+		g_read_perc = 1 - g_write_perc;
+	}
 }

@@ -2,7 +2,8 @@
 *.d
 logs/*
 .vscode/*
-*.log*
 rundb*
 sim.*
 *.png
+*-results
+*.log

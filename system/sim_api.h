@@ -145,12 +145,21 @@
 #define SimInSimulator()          (SimMagic0(SIM_CMD_IN_SIMULATOR)!=SIM_CMD_IN_SIMULATOR)
 #define SimSet
 
-
+#if SNIPER
 #define SimAccessCXLType2()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE)
 #define SimAccessCXLType3()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_WEAK_SNIPER_MODE)
 #define SimAccessLocal()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
 #define SimAccessReset()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
 
 #define SimGetEmuTime()       SimMagic0(SIM_GET_EMU_TIME)
+#else
+
+#define SimAccessCXLType2()         {}
+#define SimAccessCXLType3()         {}
+#define SimAccessLocal()            {}
+#define SimAccessReset()            {}
+#define SimGetEmuTime()             {}
+
+#endif
 
 #endif /* __SIM_API */

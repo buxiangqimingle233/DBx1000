@@ -181,16 +181,16 @@ void Stats::print() {
 		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
 		", time_log=%f, log_abort_cnt=%ld", 
 		total_txn_cnt, 
-		total_abort_cnt,
-		total_run_time / BILLION,
-		total_time_wait / BILLION,
-		total_time_ts_alloc / BILLION,
-		total_time_shared_record / BILLION,
-		(total_time_shared_row_cmt + total_time_shared_row_abort - total_time_shared_record) / BILLION,
-		(total_time_man - total_time_wait - total_time_shared_row_cmt - total_time_cleanup) / BILLION,
-		total_time_index / BILLION, 
-		(total_time_abort - total_time_shared_row_abort) / BILLION,
-		(total_time_cleanup - total_time_shared_row_abort) / BILLION,
+		total_abort_cnt,	// abort_cnt
+		total_run_time / BILLION,	// run_time
+		total_time_wait / BILLION,	// time_wait
+		total_time_ts_alloc / BILLION,	// time_ts_alloc
+		total_time_shared_record / BILLION,	// time_shared_record
+		(total_time_shared_row_cmt + total_time_shared_row_abort - total_time_shared_record) / BILLION,		// time_shared_metadata
+		(total_time_man - total_time_wait - total_time_shared_row_cmt - total_time_cleanup) / BILLION,		// time_man
+		total_time_index / BILLION, 		// time_index
+		(total_time_abort - total_time_shared_row_abort) / BILLION,	// time_abort
+		(total_time_cleanup - total_time_shared_row_abort) / BILLION,	// time_cleanup
 		total_latency / BILLION / total_txn_cnt,
 		deadlock,
 		cycle_detect,
@@ -214,16 +214,16 @@ void Stats::print() {
 		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
 		", time_log=%f, log_abort_cnt=%ld", 
 		total_txn_cnt, 
-		total_abort_cnt,
-		total_run_time / BILLION,
-		total_time_wait / BILLION,
-		total_time_ts_alloc / BILLION,
-		total_time_shared_record / BILLION,
-		(total_time_shared_row_cmt + total_time_shared_row_abort - total_time_shared_record) / BILLION,
-		(total_time_man - total_time_wait - total_time_shared_row_cmt - total_time_cleanup) / BILLION,
-		total_time_index / BILLION,
-		(total_time_abort) / BILLION,
-		(total_time_cleanup - total_time_shared_row_abort) / BILLION,
+		total_abort_cnt,	// abort_cnt
+		total_run_time / BILLION,	// run_time
+		total_time_wait / BILLION,	// time_wait
+		total_time_ts_alloc / BILLION,	// time_ts_alloc
+		total_time_shared_record / BILLION,	// time_shared_record
+		(total_time_shared_row_cmt + total_time_shared_row_abort - total_time_shared_record) / BILLION,		// time_shared_metadata
+		(total_time_man - total_time_wait - total_time_shared_row_cmt - total_time_cleanup) / BILLION,		// time_man
+		total_time_index / BILLION, 		// time_index
+		(total_time_abort - total_time_shared_row_abort) / BILLION,	// time_abort
+		(total_time_cleanup - total_time_shared_row_abort) / BILLION,	// time_cleanup
 		total_latency / BILLION / total_txn_cnt,
 		deadlock,
 		cycle_detect,
@@ -231,9 +231,9 @@ void Stats::print() {
 		dl_wait_time / BILLION,
 		total_time_query / BILLION,
 		total_debug1 / BILLION, // / BILLION,
-		total_debug2 / BILLION, // / BILLION,
+		total_debug2 /  BILLION, // / BILLION,
 		total_debug3, // / BILLION,
-		total_debug4 / BILLION, // / BILLION,
+		total_debug4, // / BILLION,
 		total_debug5 / BILLION,
 		total_time_log / BILLION,
 		total_log_abort_cnt

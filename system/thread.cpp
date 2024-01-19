@@ -43,7 +43,6 @@ RC thread_t::run() {
 	stats.init(get_thd_id());
 	pthread_barrier_wait( &warmup_bar );
 	pthread_barrier_wait( &log_bar );
-
 	set_affinity(get_thd_id());
 
 	myrand rdm;
@@ -109,7 +108,7 @@ RC thread_t::run() {
 //#endif
 		m_txn->set_txn_id(get_thd_id() + thd_txn_id * g_thread_cnt);
 		thd_txn_id ++;
-
+		
 		// HACK: get timestamp
 		if ((CC_ALG == HSTORE && !HSTORE_LOCAL_TS)
 				|| CC_ALG == MVCC 
@@ -135,7 +134,6 @@ RC thread_t::run() {
 		// results should be the same.
 		m_txn->start_ts = get_next_ts(); 
 #endif
-
 		// HACK: run txn
 		if (rc == RCOK) 
 		{
@@ -153,7 +151,7 @@ RC thread_t::run() {
 				part_lock_man.unlock(m_txn, m_query->part_to_access, m_query->part_num);
 #endif
 		}
-		
+		// printf("thread %ld txn %ld rc %d\n", get_thd_id(), m_txn->get_txn_id(), rc);
 		if (rc == Abort) {
 			uint64_t penalty = 0;
 			if (ABORT_PENALTY != 0)  {

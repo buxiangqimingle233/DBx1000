@@ -12,6 +12,7 @@
 #include "log.h"
 #include "logging_thread.h"
 #include "sim_api.h"
+#include <cstdlib>
 
 void * f(void *);
 void * f_log(void *);
@@ -36,6 +37,10 @@ void print_val();
 
 int main(int argc, char* argv[])
 {
+	// Set seed for random number generator
+	printf("Database started!\n");
+	srand48(114514);
+
 	uint64_t mainstart = get_sys_clock();
 	double mainstart_wallclock = get_wall_time();
 	parser(argc, argv);
@@ -71,6 +76,12 @@ int main(int argc, char* argv[])
 	{
 		bench = "TPCC_" + to_string(g_perc_payment);
 	}
+
+	// No logger thread for LOG_NO
+#if LOG_ALGORITHM == LOG_NO
+	g_num_logger = 0;
+#endif
+
 	log_manager = new LogManager *[g_num_logger];
 	string type = (LOG_ALGORITHM == LOG_PARALLEL) ? "P" : "B";
 	for (uint32_t i = 0; i < g_num_logger; i++)
@@ -124,6 +135,7 @@ int main(int argc, char* argv[])
 #else
 	pthread_barrier_init(&log_bar, NULL, g_num_logger + g_thread_cnt);
 #endif
+
 
 #if CC_ALG == HSTORE
 	part_lock_man.init();
