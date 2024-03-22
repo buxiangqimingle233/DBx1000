@@ -91,6 +91,7 @@ def cxl_to_smp_slowdown_ycsb_plot(exec_time):
             oracle[name] = tput
         elif env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] == 0:
             cxl[name] = tput
+
     for k in oracle:
         print(k, oracle[k] / cxl[k])
 
@@ -109,9 +110,9 @@ def cxl_to_smp_slowdown_tpcc_plot(exec_time):
 
         tput = txn_cnt / (run_time / arg['-t'])
         # print(name, tput, env["SNIPER_CXL_LATENCY"], env["SNIPER_MEM_LATENCY"])
-        if env["SNIPER_CXL_LATENCY"] == 0 and env["SNIPER_MEM_LATENCY"] == 0:
+        if env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] == 0:
             oracle[name] = tput
-        elif env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] == 0:
+        elif env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] > 0:
             cxl[name] = tput
 
     res = [max(oracle[k] / cxl[k], 1) for k in oracle]
@@ -127,16 +128,69 @@ def cxl_to_smp_slowdown_tpcc_plot(exec_time):
     return res, list(oracle.keys())
 
 
-def cxl_tpcc_breakdown(exec_time):
+def cxl_breakdown_ycsb(exec_time):
+    cfgs, args, envs = experiment_map["cxl_to_smp_slowdown_ycsb"]()
+    yvals, xval = [], []
+    legend = []
+
+    for cfg, arg, env in itertools.product(cfgs, args, envs):
+        if not (env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] > 0):
+            continue
+        if arg['-z'] not in [0, 0.7]:
+            continue
+        log_path = get_log_path(cfg, arg, env, "cxl_to_smp_slowdown_ycsb", exec_time)
+        _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
+
+
+        name = gen_simplified_name(cfg, arg, env, ['-w', 'CC_ALG', '-z'])
+
+        # compute = time_parts['time_log'] + time_parts['time_query'] + time_parts['useful_work'] + time_parts['time_index']
+        # txn_manager_tl = time_parts['time_man'] + time_parts['time_cleanup'] + time_parts['time_wait']
+        # memory_layer = time_parts['time_shared_record'] + time_parts['time_shared_metadata']
+
+        # yvals.append([compute, txn_manager_tl, memory_layer])
+        # legend = ['Log-Query-Compute', 'Txn Manager (Thread-Local)', 'Memory Layer']
+        version_management = (time_parts['time_shared_record'] + time_parts['time_man']) / run_time
+        conflict_detection = time_parts['time_shared_metadata'] / run_time
+
+        yvals.append(version_management)
+
+        # yvals.append([version_management, conflict_detection])
+        # legend = ['Version Management', 'Conflict Detection']
+
+        xval.append(arg['-w'])
+        legend.append(cfg['CC_ALG'])
+
+        # print(name, sum(time_parts.values()) / run_time)
+
+    prev_legend = None
+
+    print(" ".join(map(str, xval)))
+    for y, l in zip(yvals, legend):
+        if prev_legend is not None and prev_legend != l:
+            print(l)  # print a newline when the legend changes
+        print(y, end=' ')
+        prev_legend = l
+    print(legend[-1])  # print a newline at the end
+
+    # legend = list(time_parts.keys()) # Detailed breakdown
+
+    return yvals, xval, legend
+
+
+
+def cxl_breakdown_tpcc(exec_time):
     cfgs, args, envs = experiment_map["cxl_to_smp_slowdown_tpcc"]()
     yvals, xval = [], []
+    version_management, abort_rate, cc = [], [], []
+    
     for arg, cfg, env in itertools.product(args, cfgs, envs):
         if not (env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] > 0):
             continue
         # if arg['-Tp'] == 1 or arg['-n'] not in [4, 24, 48]:
         #     continue
         log_path = get_log_path(cfg, arg, env, "cxl_to_smp_slowdown_tpcc", exec_time)
-        _, txn_cnt, _, run_time, time_parts = parse_log(log_path)
+        _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
 
         name = gen_simplified_name(cfg, arg, env, ['-n', 'CC_ALG'])
 
@@ -144,9 +198,12 @@ def cxl_tpcc_breakdown(exec_time):
         txn_manager_tl = time_parts['time_man'] + time_parts['time_cleanup'] + time_parts['time_wait']
         memory_layer = time_parts['time_shared_record'] + time_parts['time_shared_metadata']
 
+        version_management.append((time_parts['time_shared_record'] + time_parts['time_man'] + time_parts['time_cleanup']) / run_time)
+        abort_rate.append(abort_cnt / (txn_cnt + abort_cnt))
+        cc.append(cfg['CC_ALG'])
+
         yvals.append([compute, txn_manager_tl, memory_layer])
         legend = ['Log-Query-Compute', 'Txn Manager (Thread-Local)', 'Memory Layer']
-
 
         # yvals.append([time_parts['time_shared_record'] + time_parts['time_man'] + time_parts['time_cleanup'], time_parts['time_shared_metadata']])
         # legend = ['Version Management', 'Conflict Detection']
@@ -164,10 +221,23 @@ def cxl_tpcc_breakdown(exec_time):
     # legend = list(time_parts.keys()) # Detailed breakdown
     draw_stacked_bar_plot(yvals, xval, legend, "CXL TPCC Breakdown", "Benchmark", " ", "./cxl_tpcc_breakdown.png", True)
 
+    # Collapse with concurrency control
+    draw_2d_scatter_with_legend(abort_rate, version_management, cc, "CXL TPCC Breakdown", "Abort Rate", "Version Management", "./cxl_tpcc_breakdown_scatter.png")
+    dic = {}
+    for v, a, c in zip(version_management, abort_rate, cc):
+        if c not in dic:
+            dic[c] = []
+        else:
+            dic[c].append([v, a])
+    
+    for c in dic:
+        print(c, "\n".join(map(lambda x: str(x[0]) + " " + str(x[1]), dic[c])), sep=" ")
+
+
     return yvals, xval, legend
 
 
-def cxl_tpcc_cpi(exec_time):
+def cxl_cpi_tpcc(exec_time):
     cfgs, args, envs = experiment_map["cxl_to_smp_slowdown_tpcc"]()
 
     yvals, xval = [], []
@@ -228,9 +298,59 @@ def cxl_tpcc_cpi(exec_time):
     return yvals, xval, printed_legend
 
 
-def cxl_slowdown_breakdown(exec_time):
+
+def cxl_slowdown_version_management(exec_time):
+    cfgs, args, envs = experiment_map["cxl_to_smp_slowdown_tpcc"]()
+    vm_ratio, abort_rate, cc = [], [], []
+    benchmarks = []
+
+    for arg, cfg, env in itertools.product(args, cfgs, envs):
+        if not (env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] > 0):
+            continue
+        # if arg['-Tp'] == 1 or arg['-n'] not in [4, 24, 48]:
+        #     continue
+        log_path = get_log_path(cfg, arg, env, "cxl_to_smp_slowdown_tpcc", exec_time)
+        _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
+
+        name = gen_simplified_name(cfg, arg, env, ['-n', 'CC_ALG'])
+
+        vm_ratio.append((time_parts['time_shared_record'] + time_parts['time_man'] + time_parts['time_cleanup']) / run_time)
+        abort_rate.append(abort_cnt / (txn_cnt + abort_cnt))
+        cc.append(cfg['CC_ALG'])
+        benchmarks.append(name)
+
+
+        # if c not in dic:
+        #     dic[c] = []
+        # else:
+        #     dic[c].append([v, a])
+
+    # for c in dic:
+    #     print(c, "\n".join(map(lambda x: str(x[0]) + " " + str(x[1]), dic[c])), sep=" ")
+
     # cpi_yvals, cpi_benchmarks, cpi_legend = cxl_tpcc_cpi(exec_time)
-    breakdown_yvals, breakdown_benchmarks, breakdown_legend = cxl_tpcc_breakdown(exec_time)
+    slowdown, slowdown_benchmarks = cxl_to_smp_slowdown_tpcc_plot(exec_time)
+    # print(cpi_benchmarks, slowdown_benchmarks, sep="\n")
+    assert set(benchmarks) == set(slowdown_benchmarks)
+
+    vm_ratio_dict = dict(zip(benchmarks, vm_ratio))
+    slowdown_dict = dict(zip(slowdown_benchmarks, slowdown))
+    res_x, res_y, res_l = [], [], []
+    for bm in benchmarks:
+        res_x.append(slowdown_dict[bm])
+        res_y.append(vm_ratio_dict[bm])
+        res_l.append(cc[benchmarks.index(bm)])
+
+    dic = {}
+    for v, a, c in zip(vm_ratio, slowdown, cc):
+        print(v, a, c)
+    draw_2d_scatter_with_legend(res_x, res_y, res_l, "CXL TPCC Breakdown", "Slowdown", "Version Management", "./cxl_tpcc_breakdown_scatter.png")
+
+
+
+def cxl_slowdown_breakdown_tpcc(exec_time):
+    # cpi_yvals, cpi_benchmarks, cpi_legend = cxl_tpcc_cpi(exec_time)
+    breakdown_yvals, breakdown_benchmarks, breakdown_legend = cxl_breakdown_tpcc(exec_time)
     slowdown, slowdown_benchmarks = cxl_to_smp_slowdown_tpcc_plot(exec_time)
     # print(cpi_benchmarks, slowdown_benchmarks, sep="\n")
     assert set(breakdown_benchmarks) == set(slowdown_benchmarks)
@@ -252,7 +372,7 @@ def cxl_slowdown_breakdown(exec_time):
     draw_stacked_bar_plot(scaled_breakdown, slowdown_benchmarks, breakdown_legend, "CXL TPCC Slowdown", "Benchmark", "CPI", "./cxl_slowdown_breakdown.png", False)
 
 
-def cxl_tpcc_memstatus(exec_time):
+def cxl_memstatus_tpcc(exec_time):
     cfgs, args, envs = experiment_map["cxl_to_smp_slowdown_tpcc"]()
 
     yvals, xval = [], []
@@ -289,9 +409,9 @@ def cxl_tpcc_memstatus(exec_time):
     return yvals, xval, printed_legend
 
 
-def cxl_memstatus_cpi(exec_time):
-    cpi_yvals, cpi_benchmarks, cpi_legend = cxl_tpcc_cpi(exec_time)
-    memstatus_yvals, memstatus_benchmarks, memstatus_legend = cxl_tpcc_memstatus(exec_time)
+def cxl_memstatus_cpi_tpcc(exec_time):
+    cpi_yvals, cpi_benchmarks, cpi_legend = cxl_cpi_tpcc(exec_time)
+    memstatus_yvals, memstatus_benchmarks, memstatus_legend = cxl_memstatus_tpcc(exec_time)
     assert set(cpi_benchmarks) == set(memstatus_benchmarks)
 
     cpi_dict = dict(zip(cpi_benchmarks, cpi_yvals))
@@ -309,12 +429,12 @@ def cxl_memstatus_cpi(exec_time):
         # FIXME: Check coherence v.s. sync
 
 
-def cxl_breakdown_cpi(exec_time):
+def cxl_breakdown_cpi_tpcc(exec_time):
 
     cfgs, args, envs = experiment_map["cxl_to_smp_slowdown_tpcc"]()
     yvals, xval = [], []
     for cfg, arg, env in itertools.product(cfgs, args, envs):
-        if not (env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] > 0):
+        if not (env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] == 0):
             continue
         # if arg['-Tp'] == 1 or arg['-n'] not in [4, 24, 48]:
         #     continue
@@ -331,7 +451,7 @@ def cxl_breakdown_cpi(exec_time):
         xval.append(name)
         legend = list(time_parts.keys())
 
-    cpi_yvals, cpi_benchmarks, cpi_legend = cxl_tpcc_cpi(exec_time)
+    cpi_yvals, cpi_benchmarks, cpi_legend = cxl_cpi_tpcc(exec_time)
     breakdown_yvals, breakdown_benchmarks, breakdown_legend = yvals, xval, legend
     assert set(cpi_benchmarks) == set(breakdown_benchmarks)
 

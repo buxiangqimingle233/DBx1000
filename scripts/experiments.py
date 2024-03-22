@@ -207,6 +207,7 @@ def SNA_coherence_sweep_ref():
 
     return cfgs, args, envs
 
+
 @format_configs_decorator
 def SNA_coherence_sweep():
     # DB configs
@@ -233,6 +234,7 @@ def SNA_coherence_sweep():
     ]   # Same with Deneva
 
     return cfgs, args, envs
+
 
 @format_configs_decorator_supplement_rw
 def SDA_latency_breakdown():
@@ -279,29 +281,28 @@ def cxl_to_smp_slowdown_ycsb():
     cfgs = [
         ("WORKLOAD", ['YCSB']),
         # ("CC_ALG", ['HEKATON', 'TICTOC', 'SILO']),
-        ("CC_ALG", ['OCC', 'NO_WAIT', 'WAIT_DIE', 'HEKATON', 'TICTOC', 'SILO']),
+        ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'TICTOC', 'SILO', 'MVCC']),
         ("LOG_ALGORITHM", ['LOG_NO']),
     ]
 
     # Env configs
     envs = [
         ("SNIPER", [1]),
-        ("SNIPER_CXL_LATENCY", [0, 246]), # in ns
-        ("SNIPER_MEM_LATENCY", [0, 170]), # in ns
+        ("SNIPER_CXL_LATENCY", [246]), # in ns
+        ("SNIPER_MEM_LATENCY", [170]), # in ns
     ]
-
 
     # Args configs
     args = [
         ("-p", [1]),
-        ("-w", [0, 0.1, 0.4]),
-        ("-z", [0, 0.5]),
+        ("-w", [0, 0.2, 0.4, 0.6, 0.8, 1.0]),
+        ("-z", [0, 0.2, 0.5, 0.7]),
         ("-R", [16]),
         ("-Gx", [50]),
         ("-Ln", [4]),
-        ("-t", [16]),
-        ("-s", [2097152 * 16]),
-    ]   # Same with Deneva
+        ("-t", [48]),
+        ("-s", [2097152 * 48]),
+    ]   # Same with Denevaasdf
 
     return cfgs, args, envs
 
@@ -330,6 +331,37 @@ def cxl_to_smp_slowdown_tpcc():
     #     ("-t", [48]),
     #     ("-Ln", [1]),
     # ]   # Same with Deneva
+
+    cfgs = [
+        ("WORKLOAD", ['TPCC']),
+        # ("CC_ALG", ['WAIT_DIE', 'NO_WAIT']),
+        # ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'HEKATON', 'TICTOC', 'SILO', 'MVCC']),
+        ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'TICTOC', 'SILO', 'MVCC']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [0, 246]), # in ns
+        ("SNIPER_MEM_LATENCY", [0, 170]), # in ns
+    ]
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-n", [1, 4, 8, 24, 48]),
+        ("-Tp", [0.5]),
+        ("-Gx", [50]),
+        ("-t", [48]),
+        ("-Ln", [1]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator_filter_smp_cxl
+def cxl_to_smp_slowdown_tpcc():
 
     cfgs = [
         ("WORKLOAD", ['TPCC']),

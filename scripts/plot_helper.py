@@ -1,6 +1,10 @@
 import re
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+from matplotlib.lines import Line2D
 import numpy as np
+import pandas as pd
+import seaborn as sns
 import csv
 import sys
 
@@ -46,7 +50,8 @@ def parse_log(file_path):
 def gen_simplified_name(cfg, arg, env, viariables):
     arg_name = {k: arg[k] for k in viariables if k in arg}
     cfg_name = {k: cfg[k] for k in viariables if k in cfg}
-    name = "_".join([f"{v}" for k, v in cfg_name.items()]) + "_".join([f"{v}" for k, v in arg_name.items()])
+    env_name = {k: env[k] for k in viariables if k in env}
+    name = "_".join([f"{k}-{v}" for k, v in cfg_name.items()]) + "_".join([f"{k}-{v}" for k, v in arg_name.items()]) + "_".join([f"{k}-{v}" for k, v in env_name.items()])
     return name
 
 
@@ -86,13 +91,96 @@ def draw_bar_plot(yval, xval, title, x_label, y_label, save_path):
     ax.set_title(title)
 
     # Rotate x-axis labels
-    plt.xticks(rotation=90, fontsize=8)
+    plt.xticks(rotation=90, fontsize=4)
     # Adjust the bottom margin to make room for the rotated x-axis labels
     plt.subplots_adjust(bottom=0.35)
 
     plt.tight_layout()
     plt.savefig(save_path)
     plt.clf()
+
+def draw_3d_scatter(_3d_xval1, _3d_xval2, _3d_yval, _3d_legend, title, x_label, y_label, z_label, save_path):
+    fig = plt.figure(figsize=(14, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    cmap = plt.cm.get_cmap('Set1', len(set(_3d_legend)))
+
+    # Create a color map that maps each unique string in _3d_legend to a unique color
+    color_map = {legend: cmap(i) for i, legend in enumerate(set(_3d_legend))}
+    colors = [color_map[legend] for legend in _3d_legend]
+
+    scatter = ax.scatter(_3d_xval1, _3d_xval2, _3d_yval, c=colors)
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_zlabel(z_label)
+
+    # Create a dictionary where the keys are the unique names in _3d_legend
+    # and the values are the corresponding colors from the scatter plot
+    legend_dict = {name: color for name, color in zip(_3d_legend, scatter.to_rgba(_3d_yval))}
+
+    # Create a legend using the unique names and colors
+    legend_elements = [Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=10) for name, color in legend_dict.items()]
+    ax.legend(legend_elements, legend_dict.keys(), title='Legend')
+
+    ax.set_title(title)
+
+    plt.savefig(save_path)
+    plt.clf()
+
+
+def draw_2d_scatter_with_legend(xval, yval, legend, title, x_label, y_label, save_path):
+    global ax, fig, plt, sns
+
+    # Create a DataFrame from the inputs
+    data = pd.DataFrame({'X': xval, 'Y': yval, 'Legend': legend})
+
+    # Set the style of seaborn
+    # sns.set(style="whitegrid")
+
+    # Create a scatter plot
+    # plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(dpi=600, figsize=(7, 3))
+    ax.grid(True, which="both", ls="--", linewidth=1, color='black')
+
+    # Use semilogx to make the x-dimension log scale
+    # ax.semilogx()
+
+    # Define a list of markers
+    markers = ['o', 'v', '^', 's', 'p', 'H', '*', 'h',  'D', 'd', 'P', 'X']
+
+    sns.scatterplot(x='X', y='Y', hue='Legend', style='Legend', markers=markers, data=data, palette='deep', ax=ax, s=200, edgecolor='black', linewidth=1.5)
+
+    # sns.scatterplot(x='X', y='Y', hue='Legend', data=data, palette='deep', ax=ax, s=200)
+
+    # Adding labels and title
+    # ax.set_xlabel(x_label, fontsize=14)
+    # ax.set_ylabel(y_label, fontsize=14)
+    # ax.set_title(title)
+    # fig.tight_layout()
+
+    ax.set_ylim(0, 1)
+    # ax.set_xlim(1, 2.5)
+    ax.tick_params(axis='both', which='major', labelsize=15)
+    # Use ScalarFormatter to force decimal notation
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: '{:0.1f}'.format(x)))
+    # ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+    # ax.xaxis.get_major_formatter().set_scientific(False)
+    # ax.xaxis.get_major_formatter().set_useOffset(False)
+
+
+    # Show legend
+    # plt.legend(title='Series', loc='upper right')
+    l = plt.legend(loc='upper center', bbox_to_anchor=(0.47, 1.18), ncol=len(set(legend)), columnspacing=0.5, fontsize=11)
+
+    # Set the legend border line color to black
+    l.get_frame().set_edgecolor('black')
+
+    # Show the plot for verification
+    plt.savefig(save_path)
+    plt.clf()
+    plt.cla()
+    sns.reset_defaults()
 
 
 def draw_stacked_bar_plot(yvals, xval, legend, title, x_label, y_label, save_path, regularized=True):
@@ -133,7 +221,7 @@ def draw_stacked_bar_plot(yvals, xval, legend, title, x_label, y_label, save_pat
     ax.set_title(title)
 
     # Rotate x-axis labels
-    plt.xticks(rotation=90, fontsize=8)
+    plt.xticks(rotation=90, fontsize=6)
     # Adjust the bottom margin to make room for the rotated x-axis labels
     plt.subplots_adjust(bottom=0.35)
     # Add legend
