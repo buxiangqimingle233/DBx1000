@@ -46,14 +46,141 @@ def parse_log(file_path):
 
     return config_info, txn_count_total, abort_count_total, run_time, time_parts
 
+def parse_ep_agent(log_path):
+    data = []
+    current_section = None
+    current_data = None
+    toggle = False
+    with open(log_path, 'r') as f:
+        for line in f:
+            if "Estimated CPU_FREQ" in line:
+                toggle = True
+            if not toggle:
+                continue
+            if 'Status:' in line:
+                if current_data is not None:
+                    data.append(current_data)
+                line = line.replace('Status:', '')
+                current_section = '-'.join([item for item in line.split(' ') if item.strip()])
+                current_section = current_section.lower().replace(' ', '-')
+                current_data = {current_section: {}}
+            elif current_section is not None:
+                parts = re.split(', | ', line)
+                for i, part in enumerate(parts):
+                    if ':' in part:
+                        key, _ = part.split(':')
+                        if key.strip() == '':
+                            continue
+                        value = parts[i + 1]
+                        try: 
+                            if '/' in value:
+                                value = float(value.split('/')[0]) / float(value.split('/')[1])
+                            else:
+                                value = float(value)
+                            current_data[current_section][key.lower().replace(' ', '-')] = value
+                        except: 
+                            pass
+
+        if current_data is not None:
+            data.append(current_data)
+
+    transposed_data = {}
+
+    for section in data:
+        for section_name, kv_pairs in section.items():
+            if section_name not in transposed_data:
+                transposed_data[section_name] = {}
+            for key, value in kv_pairs.items():
+                if key not in transposed_data[section_name]:
+                    transposed_data[section_name][key] = []
+                transposed_data[section_name][key].append(value)
+
+    for key, value in transposed_data.items():
+        for k, v in value.items():
+            transposed_data[key][k] = sum(v)
+    return transposed_data
+
+def parse_latency_dist(log_path):
+    data = []
+    toggle = False
+    with open(log_path, 'r') as f:
+        for line in f:
+            if re.findall(r'^n\(', line):
+                toggle = True
+            if not toggle:
+                continue
+
+            n = re.search(r'n\((\d+)\)', line)
+            avg = re.search(r'avg\(([\d\.]+)\)', line)
+            std = re.search(r'std\(([\d\.]+)\)', line)
+            min_val = re.search(r'min\((\d+)\)', line)
+            max_val = re.search(r'max\((\d+)\)', line)
+            hist = re.search(r'hist\(([\d\,]+)\)', line)
+
+            if n and avg and std and min_val and max_val and hist:
+                data.append({
+                    'n': int(n.group(1)),
+                    'avg': float(avg.group(1)),
+                    'std': float(std.group(1)),
+                    'min': int(min_val.group(1)),
+                    'max': int(max_val.group(1)),
+                    'hist': list(map(int, hist.group(1).split(',')))
+                })
+
+    ret = {'n': 0, 'avg': 0, 'std': 0, 'min': 0, 'max': 0, 'hist': [0 for _ in data[0]['hist']]}
+
+    for item in data:
+        ret['n'] += item['n']
+        ret['min'] = min(ret['min'], item['min'])
+        ret['max'] = max(ret['max'], item['max'])
+        ret['hist'] = [x + y for x, y in zip(ret['hist'], item['hist'])]
+
+    ret['avg'] = sum([item['avg'] * item['n'] for item in data]) / ret['n']
+
+    return ret
+
+def parse_bus_traffic(log_path, interval):
+    with open(log_path, 'r') as f:
+        lines = f.readlines()
+    data = []
+    for i, line in enumerate(lines):
+        if "EP-Bus-Record:" in line:
+            numbers = lines[i + 1].split(',')
+            numbers = [num for num in numbers if num not in ('', '\n')]
+            data.append([int(num) / interval / 1e9 for num in numbers])
+    res = [0 for _ in data[0]]
+    for i in range(len(data[0])):
+        for j in range(len(data)):
+            res[i] += data[j][i]
+    return res
+
 
 def gen_simplified_name(cfg, arg, env, viariables):
     arg_name = {k: arg[k] for k in viariables if k in arg}
     cfg_name = {k: cfg[k] for k in viariables if k in cfg}
     env_name = {k: env[k] for k in viariables if k in env}
-    name = "_".join([f"{k}-{v}" for k, v in cfg_name.items()]) + "_".join([f"{k}-{v}" for k, v in arg_name.items()]) + "_".join([f"{k}-{v}" for k, v in env_name.items()])
+    name = "_".join([f"{k}-{v}" for k, v in arg_name.items()]) + "_" + "_".join([f"{k}-{v}" for k, v in cfg_name.items()]) + "_" + "_".join([f"{k}-{v}" for k, v in env_name.items()])
     return name
 
+def get_exec_time(bm, key_word=" "):
+    from paperexps import time_map
+    for t, h in time_map[bm].items():
+        if h.find(key_word) != -1:
+            exec_time = t
+            print(" ====== Adopt execution time:", exec_time, "with description:", h)
+            print("\n\n")
+            return exec_time
+
+    print(" ERROR: Could not find the execution time for the given key_word:", key_word, "in the time_map")
+    print(" ====== Adopt execution time:", list(time_map[bm].values())[0], "with description:", list(time_map[bm].keys())[0])
+    return list(time_map[bm].values())[0]
+
+
+def draw_histogram(xval, save_path):
+    sns.histplot(xval, kde=False, bins=len(xval))
+    plt.show()
+    plt.savefig(save_path)
+    plt.clf()
 
 def draw_line_plot(yval, xval, vval, title, ylabel, xlabel, vlabel, save_path):
     assert len(yval) == len(vval)
@@ -73,7 +200,7 @@ def draw_line_plot(yval, xval, vval, title, ylabel, xlabel, vlabel, save_path):
     ax.legend(vval, loc='upper right', fontsize='small')
     plt.tight_layout()
     plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-
+    plt.show()
     plt.tight_layout()
     plt.savefig(save_path)
 
@@ -94,7 +221,7 @@ def draw_bar_plot(yval, xval, title, x_label, y_label, save_path):
     plt.xticks(rotation=90, fontsize=4)
     # Adjust the bottom margin to make room for the rotated x-axis labels
     plt.subplots_adjust(bottom=0.35)
-
+    plt.show()
     plt.tight_layout()
     plt.savefig(save_path)
     plt.clf()
@@ -226,7 +353,7 @@ def draw_stacked_bar_plot(yvals, xval, legend, title, x_label, y_label, save_pat
     plt.subplots_adjust(bottom=0.35)
     # Add legend
     ax.legend()
-
+    plt.show()
     # Show the plot for verification
     plt.savefig(save_path)
     plt.clf()
@@ -313,3 +440,4 @@ def parse_memstatus_output(text):
         k, v = line.split(' ')
         data[k] = float(v)
     return data
+

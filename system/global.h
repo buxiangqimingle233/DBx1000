@@ -33,6 +33,8 @@
 
 using namespace std;
 
+extern std::string bin_directory;
+
 class mem_alloc;
 class Stats;
 class DL_detect;
@@ -120,6 +122,7 @@ extern double g_zipf_theta;
 extern UInt64 g_synth_table_size;
 extern UInt32 g_req_per_query;
 extern UInt32 g_field_per_tuple;
+extern UInt32 g_size_per_field;
 extern UInt32 g_init_parallelism;
 
 // TPCC

@@ -91,6 +91,7 @@ RC LoggingThread::run()
 	LogManager *logger;
 	uint32_t logger_id = GET_THD_ID % g_num_logger;
 	logger = log_manager[logger_id];
+	
 
 #if AFFINITY
 	//#if LOG_ALGORITHM == LOG_TAURUS || LOG_ALGORITHM == LOG_BATCH
@@ -105,7 +106,7 @@ RC LoggingThread::run()
 	int node = numa_node_of_cpu(cpu);
 	assert((uint64_t)node == node_id);
 #endif
-	PAUSE // try to make affinity effective
+	// PAUSE // try to make affinity effective
 	init();
 	//#endif
 	pthread_barrier_wait(&log_bar);
@@ -122,7 +123,7 @@ RC LoggingThread::run()
 				break;
 			if (bytes == 0)
 			{
-				usleep(100);
+				// usleep(100);
 			}
 		}
 		//poolDone = true;
@@ -142,7 +143,6 @@ RC LoggingThread::run()
 			{
 				flushcount++;
 			}
-
 			// update epoch periodically.
 #if LOG_ALGORITHM == LOG_BATCH
 			glob_manager->update_epoch();

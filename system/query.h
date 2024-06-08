@@ -20,6 +20,7 @@ class Query_thd {
 public:
 	void init(workload * h_wl, int thread_id);
 	base_query * get_next_query(); 
+	int max_q_cnt;
 	int q_idx;
 #if WORKLOAD == YCSB
 	ycsb_query * queries;

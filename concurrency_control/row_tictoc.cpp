@@ -41,9 +41,7 @@ Row_tictoc::access(txn_man * txn, TsType type, row_t * local_row)
 			v = _ts_word;
 		}
 		// local_row->copy(_row);
-		SimAccessCXLType3();
-		PROFILE_VOID(time_shared_record, local_row->copy, _row);
-		SimAccessReset();
+		PROFILE_VOID(time_shared_record, local_row->copy_from_cxl, _row);
 		COMPILER_BARRIER
 		v2 = _ts_word;
   #if WRITE_PERMISSION_LOCK
@@ -79,7 +77,9 @@ Row_tictoc::write_data(row_t * data, ts_t wts)
   	v &= ~(RTS_MASK | WTS_MASK); // clear wts and rts.
 	v |= wts;
 	_ts_word = v;
-	_row->copy(data);
+	// _row->copy(data);
+	_row->copy_to_cxl(data);
+	SimSyncWrite((unsigned long)_row->data, _row->get_tuple_size());
   #if WRITE_PERMISSION_LOCK
 	_ts_word &= (~LOCK_BIT);
   #endif

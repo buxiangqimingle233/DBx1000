@@ -24,8 +24,8 @@ Row_occ::access(txn_man * txn, TsType type) {
 			rc = Abort;
 		else { 
 			// txn->cur_row->copy(_row);
-			SimAccessCXLType3();
-			PROFILE_VOID(time_shared_record, txn->cur_row->copy, _row);
+			// PROFILE_VOID(time_shared_record, txn->cur_row->copy, _row);
+			PROFILE_VOID(time_shared_record, txn->cur_row->copy_from_cxl, _row);
 			rc = RCOK;
 		}
 	} else 
@@ -48,9 +48,8 @@ Row_occ::validate(uint64_t ts) {
 void
 Row_occ::write(row_t * data, uint64_t ts) {
 	// _row->copy(data);
-	SimAccessCXLType3();
-	PROFILE_VOID(time_shared_record, _row->copy, data);
-	SimAccessReset();
+	// PROFILE_VOID(time_shared_record, _row->copy, data);
+	PROFILE_VOID(time_shared_record, _row->copy_to_cxl, data);
 	if (PER_ROW_VALID) {
 		assert(ts > wts);
 		wts = ts;

@@ -109,6 +109,12 @@ void ycsb_query::gen_requests(uint64_t thd_id, workload * h_wl) {
 			part_to_access[ ith ];
 		uint64_t table_size = g_synth_table_size / g_virtual_part_cnt;
 		uint64_t row_id = zipf(table_size - 1, g_zipf_theta);
+		
+
+		//HACK: check generation
+		// std::string o = to_string(row_id) + " ";
+		// std::cerr << o << std::endl;
+
 		assert(row_id < table_size);
 		uint64_t primary_key = row_id * g_virtual_part_cnt + part_id;
 		req->key = primary_key;

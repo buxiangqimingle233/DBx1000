@@ -41,7 +41,7 @@ RC txn_man::make_log(RC rc) {
 	// 
 	// Assumption: every write is actually an update. 
 	// predecessors store the TID of predecessor transactions. 
-
+	printf("DEBUG: %d\n", 44);
 	uint64_t starttime = get_sys_clock();
 	uint32_t offset = 0;
 	uint32_t checksum = 0xbeef;  // we also use this to distinguish PSN items and log items
@@ -70,7 +70,7 @@ RC txn_man::make_log(RC rc) {
 		PACK(_log_entry, tuple_size, offset);
 		PACK_SIZE(_log_entry, tuple_data, tuple_size, offset);
 	}
-
+	printf("DEBUG: %d\n", 73);
 	uint32_t _log_entry_size = offset;
 	assert(_log_entry_size < g_max_log_entry_size);
 	// update size. 
@@ -82,7 +82,7 @@ RC txn_man::make_log(RC rc) {
 	uint32_t logger_id = _worker_thd_id % g_num_logger;
 	uint64_t _persistent_epoch = glob_manager->get_epoch();	
 	uint64_t tid = log_manager[logger_id]->logTxn(_log_entry, _log_entry_size, _persistent_epoch);
-
+	printf("DEBUG: %d\n", 85);
 	uint64_t timespan = get_sys_clock() - starttime;
 	INC_STATS(get_thd_id(), time_log, timespan);
 
@@ -218,6 +218,7 @@ void txn_man::cleanup(RC rc) {
 
 }
 
+// row points to the CXL memory, access->xxx points to the local buffer
 row_t * txn_man::get_row(row_t * row, access_t type) {
 	if (CC_ALG == HSTORE)
 		return row;
@@ -259,7 +260,11 @@ row_t * txn_man::get_row(row_t * row, access_t type) {
 	if (type == WR) {
 		accesses[row_cnt]->orig_data->table = row->get_table();
 		// accesses[row_cnt]->orig_data->copy(row);
-		PROFILE_VOID(time_shared_record, accesses[row_cnt]->orig_data->copy, row);
+		PROFILE_VOID(time_shared_record, accesses[row_cnt]->orig_data->copy_from_cxl, row);
+	} else if (type == RD) {
+		// HACK: Do a dummy read here
+		accesses[row_cnt]->orig_data->table = row->get_table();
+		PROFILE_VOID(time_shared_record, accesses[row_cnt]->orig_data->copy_from_cxl, row);
 	}
 #endif
 

@@ -73,7 +73,9 @@ UInt32 g_thread_cnt = THREAD_CNT;
 UInt64 g_synth_table_size = SYNTH_TABLE_SIZE;
 UInt32 g_req_per_query = REQ_PER_QUERY;
 UInt32 g_field_per_tuple = FIELD_PER_TUPLE;
+UInt32 g_size_per_field = SIZE_PER_FIELD;
 UInt32 g_init_parallelism = INIT_PARALLELISM;
+
 
 UInt32 g_num_wh = NUM_WH;
 double g_perc_payment = PERC_PAYMENT;

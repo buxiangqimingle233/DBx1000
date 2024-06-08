@@ -164,9 +164,7 @@ uint64_t t2 = get_sys_clock();
 			row_t * res_row = reserveRow(ts, txn);
 			assert(res_row);
 			// res_row->copy(_latest_row);
-			SimAccessCXLType3();
-			PROFILE_VOID(time_shared_record, res_row->copy, _latest_row);
-			SimAccessReset();
+			PROFILE_VOID(time_shared_record, res_row->copy_from_cxl, _latest_row);
 			txn->cur_row = res_row;
 		}
 	} else if (type == W_REQ) {
@@ -341,7 +339,7 @@ void Row_mvcc::update_buffer(txn_man * txn, TsType type) {
 			assert(_requests[i].type == P_REQ);
 			row_t * res_row = reserveRow(_requests[i].ts, txn);
 			assert(res_row);
-			res_row->copy(_latest_row);
+			res_row->copy_to_cxl(_latest_row);
 			_requests[i].valid = false;
 			_requests[i].txn->cur_row = res_row;
 			_requests[i].txn->ts_ready = true;

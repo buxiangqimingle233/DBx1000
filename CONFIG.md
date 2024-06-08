@@ -35,6 +35,27 @@
     * WAIT_DIE, NO_WAIT, DL_DETECT: at cleanup, before roll-back
     * HEKATON, HSTORE, VLL
 
+# Time to add CXL write mark
+* OCC: at return_row, after write data
+* WAIT_DIE, NO_WAIT, DL_DETECT: at return_row, before release locks
+* SILO: at Row_silo::write, which applies the updates as well as release the lock bit
+* TICTOC: at Row_tictoc::write_data, after _row->copy
+* MVCC, TimeStamp: Similar to OCC
+
+# Copy-from-CXL or Copy-from-CXL
+* OCC:  Row_occ::access-copy_from_cxl, Row_occ::write-copy_to_cxl
+* TimeStamp: Row_ts::access-copy_from_cxl, Row_ts::update_buffer-copy_from_cxl, Row_ts::access-copy_to_cxl, Row_ts::update_buffer-copy_to_cxl, 
+* WAIT_DIE, NO_WAIT, DL_DETECT: txn_man::get_row-copy_from_cxl, row_t::return_row-copy_to_cxl
+* SILO: Row_silo::access-copy_from_cxl, Row_silo::write-copy_to_cxl
+* TICTOC: Row_tictoc::access-copy_from_cxl, Row_tictoc::write_data-copy_to_cxl
+* MVCC: Row_mvcc::access-copy_from_cxl, Row_mvcc::update_buffer-copy_to_cxl
+
+
+# Time to flush Write Queue
+* The commit queue chould be synchronous or asynchronous, the queue flushing is required if the queue is asynchronous
+* For the current implementation, we assume the write commit is sync, i.e. the EP agent returns after all peer caches are invalidated. The timing overhead is added up immediately by the simulator. 
+
+
 # Experiment Setup
 * Contended TPC-C: 1 & 4 warehouses, 10% NewOrder and 15% Payment touch remote records
 * Uncontended TPC-C: 1 warehouse/thread, 10% NewOrder and 15% Payment touch remote records
@@ -58,8 +79,10 @@
 ## YCSB
 
 ### Dataset
-* 20GB YCSB database with 20m records
-* primary key with 100 bytes records
+* 10GB YCSB database with 100 byte-per-record * 2m * 48 records
+
+### Dataset for CC Test
+* 3M record * 100B = 300 MB records
 
 ### TXN
 * 16 records per txn, all queries are independent
@@ -85,3 +108,43 @@
 
 # Simulate Multiple Hosts
 * DBx1000-Distributed mode
+
+
+Please Check: 
+* experiment.py: SNIPER_CXL_LATENCY & SNIPER_MEM_LATENCY
+* sim_api.h: Strong & Weak
+* address_home_lookup.cc:42 Directory Mapping
+
+
+### ALL THINGS ARE WRONG: CC和Mem Latency反了。。。。
+* 20240403-122323_cxl_to_smp_slowdown_tpcc: All Strongly Coherent, 456-847 ns
+* 20240402-151004_cxl_to_smp_slowdown_tpcc: Strong-Weak Coherent, 456-847 ns, VBF + Cuckoo Filter, no back-invalidation
+* 20240403-195216_cxl_to_smp_slowdown_ycsb: All Strongly Coherent, 456-847 ns, YCSB
+* 20240408-104121_cxl_to_smp_slowdown_ycsb: Strong-Weak Coherent, 456-847 ns, VBF + Cuckoo Filter, no back-invalidation
+
+### STH NEW。。。
+* 20240423-220502_cxl_to_smp_slowdown_tpcc: All Strongly Coherent, 847-456 ns
+* 20240424-090154_cxl_to_smp_slowdown_tpcc: Strong-Weak Coherent, 847-456 ns, VBF + Cuckoo Filter, no back-invalidation
+* 20240427-223434_cxl_to_smp_slowdown_ycsb: All Strongly Coherent, 847-456 ns
+* 20240426-113422_cc_respect2_read: YCSB, All Strongly Coherent, 847-456 ns
+
+
+* 20240516-170810_cxl_to_smp_slowdown_tpcc: All Strongly Coherent, 246-170 ns
+* 20240517-212920_cxl_to_smp_slowdown_tpcc: Strong-Weak Coherent, 246-170 ns, VBF + Cuckoo Filter, no back-invalidation
+
+### Paper Figures: see eval for hardware setups
+* 20240528-211236_tput_tpcc: 847-456 ns, 2KB/core SF
+* 20240528-130806_tput_ycsb: 847-456 ns, 2KB/core SF, 1000B record / tuple
+* 20240530-191418_tput_ycsb: 847-456 ns, 16KB/core SF, 200B record / tuple
+* 20240531-100934_tput_ycsb: 246-170 ns, 16KB/core SF, 200B record / tuple
+* 20240531-114512_tput_tpcc: 246-170 ns, 16KB/core SF
+
+* 20240531-152318_record_size_sensitivity: 847-456 ns, 16KB/core SF, YCSB
+
+* 20240603-003124_index_sensitivity_tpcc: 847-456 ns, 16KB/core SF, CXTNL PRIMITIVE
+* 20240603-123540_index_sensitivity_tpcc: 847-456 ns, 16KB/core SF, CXLVANILLA PRIMITIVE
+
+* 20240603-203317_scalability_tpcc: 847-456 ns, 16KB/core SF, CXTNL PRIMITIVE
+
+EP Test Requires Large number of Transactions
+* 20240604-144141_ep_test: 847-456 ns, 16KB/core SF, CXTNL PRIMITIVE, 500 txns/thread, 4 Node, 32 Threads

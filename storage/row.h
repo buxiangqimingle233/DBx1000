@@ -50,6 +50,8 @@ public:
 	uint64_t get_row_id() { return _row_id; };
 
 	void copy(row_t * src);
+	void copy_to_cxl(row_t* source);
+	void copy_from_cxl(row_t* source);
 
 	void 		set_primary_key(uint64_t key) { _primary_key = key; };
 	uint64_t 	get_primary_key() {return _primary_key; };

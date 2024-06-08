@@ -61,7 +61,6 @@
 #define LOG_COMMAND					2
 
 #define SUPPORT_RECOVER				false
-// #define LOG_ALGORITHM				LOG_BATCH
 #define LOG_ALGORITHM				LOG_NO
 #define LOG_TYPE                    LOG_DATA
 #define LOG_RAM_DISK				false
@@ -74,7 +73,7 @@
 #define FLUSH_BLOCK_SIZE			1048576 
 #define MAX_LOG_ENTRY_SIZE			16384 // in Bytes
 #define LOG_CHUNK_SIZE 				1048576 * 10
-#define LOG_FLUSH_INTERVAL 			0
+#define LOG_FLUSH_INTERVAL 			10
 
 // #define AFFINITY true 
 #define AFFINITY false				// affinity requires script probe of cpu info
@@ -158,8 +157,8 @@
 #define FIRST_PART_LOCAL 			true
 #define MAX_TUPLE_SIZE				1024 // in bytes
 // ==== [YCSB] ====
-#define INIT_PARALLELISM			48
-#define SYNTH_TABLE_SIZE 			(1024 * 48)
+#define INIT_PARALLELISM			16
+#define SYNTH_TABLE_SIZE 			(1024 * 16)
 #define ZIPF_THETA 					0.6
 #define READ_PERC 					0.9
 #define WRITE_PERC 					0.1
@@ -168,7 +167,9 @@
 #define PART_PER_TXN 				1
 #define PERC_MULTI_PART				1
 #define REQ_PER_QUERY				16
-#define FIELD_PER_TUPLE				10
+#define FIELD_PER_TUPLE				0
+#define SIZE_PER_FIELD				0
+
 // ==== [TPCC] ====
 // For large warehouse count, the tables do not fit in memory
 // small tpcc schemas shrink the table size.

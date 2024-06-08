@@ -13,11 +13,14 @@
 #include "mem_alloc.h"
 #include "tpcc_const.h"
 #include "manager.h"
+#include <libgen.h>
+#include <string>
 
 RC tpcc_wl::init() {
 	workload::init();
 	next_tid = 0;
-	string path = "./benchmarks/";
+	std::string path = bin_directory + "/benchmarks/";
+
 #if TPCC_SMALL
 	path += "TPCC_short_schema.txt";
 #else
@@ -53,6 +56,32 @@ RC tpcc_wl::init_schema(const char * schema_file) {
 
 RC tpcc_wl::init_table() {
 	num_wh = g_num_wh;
+	tpcc_buffer = new drand48_data * [g_num_wh];
+	pthread_t * p_thds = new pthread_t[g_num_wh - 1];
+#if INDEX_STRUCT == IDX_HASH
+	for (uint32_t i = 0; i < g_num_wh - 1; i++) {
+		pthread_create(&p_thds[i], NULL, threadInitWarehouse, this);
+	}
+	threadInitWarehouse(this);
+	for (uint32_t i = 0; i < g_num_wh - 1; i++) 
+		pthread_join(p_thds[i], NULL);
+#else
+	for (uint32_t i = 0; i < g_num_wh - 1; i++) {
+		pthread_create(&p_thds[i], NULL, threadInitWarehouse, this);
+		pthread_join(p_thds[i], NULL);
+	}
+	threadInitWarehouse(this);
+#endif
+	// if (g_init_parallelism == 1) {
+	// 	for (uint32_t i = 0; i < g_num_wh - 1; i++) {
+	// 		threadInitWarehouse(this);
+	// 	}
+	// 	return RCOK;		
+	// } else {
+
+	printf("TPCC Data Initialization Complete!\n");
+	return RCOK;
+	// }
 
 /******** fill in data ************/
 // data filling process:
@@ -66,16 +95,6 @@ RC tpcc_wl::init_table() {
 //		- new order
 //		- order line
 /**********************************/
-	tpcc_buffer = new drand48_data * [g_num_wh];
-	pthread_t * p_thds = new pthread_t[g_num_wh - 1];
-	for (uint32_t i = 0; i < g_num_wh - 1; i++) 
-		pthread_create(&p_thds[i], NULL, threadInitWarehouse, this);
-	threadInitWarehouse(this);
-	for (uint32_t i = 0; i < g_num_wh - 1; i++) 
-		pthread_join(p_thds[i], NULL);
-
-	printf("TPCC Data Initialization Complete!\n");
-	return RCOK;
 }
 
 RC tpcc_wl::get_txn_man(txn_man *& txn_manager, thread_t * h_thd) {

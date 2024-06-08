@@ -4,13 +4,20 @@ from tqdm import tqdm
 import helper
 from helper import get_work_name, get_executable_name, get_result_home, replace_configs
 import itertools
-from experiments import experiment_map, DBMS_CFG
+# from experiments import experiment_map, DBMS_CFG, SIM_API
+from paperexps import experiment_map, DBMS_CFG, SIM_API
 import pickle
 
-def compile_binary(cfg):
+def compile_binary(cfg, env):
     print("Starting compilation for job: {}".format(str(cfg)))
     os.system("cp " + DBMS_CFG[0] + ' ' + DBMS_CFG[1])
     replace_configs(DBMS_CFG[1], cfg)
+
+    os.system("cp " + SIM_API[0] + ' ' + SIM_API[1])
+    if env["SNIPER"] and "PRIMITIVE" in env:
+        primitve_choice = {"CXLVANILLA": 0, "CXTNL": 0}
+        primitve_choice[env["PRIMITIVE"]] = 1
+        replace_configs(SIM_API[1], primitve_choice)
 
     os.system("make clean > temp.out 2>&1")
     print("Running 'make' for the job...")
@@ -31,7 +38,7 @@ def compile_binary(cfg):
     print("PASS Compile\t\talg=%s,\tworkload=%s" % (cfg['CC_ALG'], cfg['WORKLOAD']))
 
 
-def run_script_in_docker_container(container_name, script, max_retries=3, timeout_seconds=1800):
+def run_script_in_docker_container(container_name, script, max_retries=3, timeout_seconds=1200):
     # Check if the Docker container is running
     cmd = f"docker ps --filter name={container_name} --format '{{{{.Names}}}}'"
     output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
@@ -61,17 +68,29 @@ def run_script_in_docker_container(container_name, script, max_retries=3, timeou
 
 def run_binary(cfg: dict, arg: dict, env: dict, exp, retry=0):
 
+    cfg = cfg.copy()
+    arg = arg.copy()
+    env = env.copy()
+
     sniper = env["SNIPER"]
+
+    if arg['-t'] == -1:
+        arg['-t'] = env["THREAD_PER_NODE"] * env["NNODE"]
+    if "-t_per_wh" in arg:
+        assert cfg["WORKLOAD"] == "TPCC"
+        arg["-n"] = int(arg['-t'] / arg['-t_per_wh'])
+        arg.pop("-t_per_wh")
+
     arg_value = " ".join(f"{key}{value}" for key, value in arg.items())
     work_name = get_work_name(cfg, arg, env)
-    result_home = get_result_home(cfg, arg, env, exp)
+    result_home = get_result_home(cfg, arg, env, exp, helper.strnow)
     os.makedirs(result_home, exist_ok=True)
 
     print("Running test for job: {}".format(work_name))
 
     # Create working directory
     home = os.getcwd()
-
+    # return
     if sniper:  # run in sniper mode (in docker)
         result_dir = os.path.join(result_home, work_name)
         if not os.path.exists(result_dir):
@@ -85,15 +104,20 @@ def run_binary(cfg: dict, arg: dict, env: dict, exp, retry=0):
         SNIPER_CONFIG = env["SNIPER_CONFIG"]
         SNIPER_CXL_LATENCY = env["SNIPER_CXL_LATENCY"]
         SNIPER_MEM_LATENCY = env["SNIPER_MEM_LATENCY"]
-
+        NTHREAD_PER_NODE = env["THREAD_PER_NODE"]
+        NNODE = env["NNODE"]
+        total_threads = NTHREAD_PER_NODE * NNODE
 
         recorder_args = []
-        recorder_args += ["--no-cache-warming", "-d", result_dir, "--cache-only", "-n", 48]
+        # recorder_args += ["--no-cache-warming", "-d", result_dir, "--cache-only", "-n", total_threads]
         # recorder_args += ["-d", result_dir, "-n", 32]
+        recorder_args += ["-d", result_dir, "--cache-only"]
         recorder_args += ["--roi"]
         recorder_args += ["-c", SNIPER_CONFIG]
         recorder_args += ["-g", f"perf_model/cxl/cxl_cache_roundtrip={SNIPER_CXL_LATENCY}"]
         recorder_args += ["-g", f"perf_model/cxl/cxl_mem_roundtrip={SNIPER_MEM_LATENCY}"]
+        recorder_args += ["-g", f"general/total_cores={total_threads}"]
+        recorder_args += ["-g", f"perf_model/dram/num_controllers={NNODE}"]
 
         cmd = sniper_bin + " " + " ".join(map(str, recorder_args)) + " -- " + os.path.join(home, get_executable_name(cfg)) + ' ' + arg_value
         print("Executing command: {}".format(cmd))
@@ -134,10 +158,12 @@ def run_binary(cfg: dict, arg: dict, env: dict, exp, retry=0):
             raise Exception("Failed to run the binary. cmd = %s" % cmd)
         # exit(0)
 
+
 def load_state():
     # Load the runtime state from a pickle file
     with open('runtime_state.pkl', 'rb') as f:
         state = pickle.load(f)
+    print(f"Recovered state: {state}")
     return state
 
 
@@ -152,15 +178,20 @@ def run_all(exps, recover=False):
         cfgs, args, envs = experiment_map[exps]()
         total_jobs = len(cfgs) * len(args) * len(envs)
         progress_bar = tqdm(total=total_jobs, desc="Running Benchmarks", unit="config unit")
+
         for cfg, arg, env, in itertools.product(cfgs, args, envs):
             if env["SNIPER"]:
                 cfg["SNIPER"] = 1
             if recover and progress_bar.n < jumpto:
                 progress_bar.update(1)
                 continue
-            compile_binary(cfg)
+            compile_binary(cfg, env)
             run_binary(cfg, arg, env, exps)
             progress_bar.update(1)
+
+            with open('runtime_state.pkl', 'wb') as f:
+                pickle.dump({'cnt': progress_bar.n, 'time': helper.strnow}, f)
+
     except Exception as e:
         print(f"An error occurred: {e}")
         # Save the runtime state to a pickle file

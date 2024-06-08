@@ -13,12 +13,15 @@
 #include "logging_thread.h"
 #include "sim_api.h"
 #include <cstdlib>
+#include <libgen.h>
 
 void * f(void *);
 void * f_log(void *);
 
 thread_t ** m_thds;
 LoggingThread **logging_thds;
+std::string bin_directory;
+
 
 // defined in parser.cpp
 void parser(int argc, char * argv[]);
@@ -37,6 +40,10 @@ void print_val();
 
 int main(int argc, char* argv[])
 {
+	char* dirc = strdup(argv[0]);
+    bin_directory = std::string(dirname(dirc));
+	delete dirc;
+	
 	// Set seed for random number generator
 	printf("Database started!\n");
 	srand48(114514);
@@ -64,9 +71,11 @@ int main(int argc, char* argv[])
 			((TestWorkload *)m_wl)->tick();
 			break;
 		default:
-			assert(false);
+			assert(false);  
 	}
 	m_wl->init();
+	// Check address 
+
 	printf("workload initialized!\n");
 	glob_manager->set_workload(m_wl);
 
@@ -83,12 +92,14 @@ int main(int argc, char* argv[])
 #endif
 
 	log_manager = new LogManager *[g_num_logger];
+
 	string type = (LOG_ALGORITHM == LOG_PARALLEL) ? "P" : "B";
 	for (uint32_t i = 0; i < g_num_logger; i++)
 	{
 		log_manager[i] = (LogManager *)_mm_malloc(sizeof(LogManager), 64);
 		new (log_manager[i]) LogManager(i);
-		log_manager[i]->init("./logs/" + type + "D_log" + to_string(i) + "_" + to_string(g_num_logger) + "_" + bench + ".log");
+		// log_manager[i]->init("./logs/" + type + "D_log" + to_string(i) + "_" + to_string(g_num_logger) + "_" + bench + ".log");
+		log_manager[i]->init("./" + type + "D_log" + to_string(i) + "_" + to_string(g_num_logger) + "_" + bench + ".log");
 	}
 
 /* Seems no use, copied from logging version

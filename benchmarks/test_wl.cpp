@@ -8,8 +8,7 @@
 
 RC TestWorkload::init() {
 	workload::init();
-	string path;
-	path = "./benchmarks/TEST_schema.txt";
+	std::string path = bin_directory + "/benchmarks/TEST_schema.txt";
 	init_schema( path.c_str() );
 
 	init_table();

@@ -97,7 +97,6 @@ RC Row_hekaton::access(txn_man * txn, TsType type, row_t * row) {
 			row_t * res_row = _write_history[id].row;
 			assert(res_row);
 			// res_row->copy(_write_history[_his_latest].row);
-			SimAccessCXLType3();
 			PROFILE_VOID(time_shared_record, res_row->copy, _write_history[_his_latest].row);
 			SimAccessCXLType2();
 			txn->cur_row = res_row;

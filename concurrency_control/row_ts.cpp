@@ -165,7 +165,8 @@ RC Row_ts::access(txn_man * txn, TsType type, row_t * row) {
 			rc = WAIT;
 		} else {
 			// return the value.
-			txn->cur_row->copy(_row);
+			// txn->cur_row->copy(_row);
+			txn->cur_row->copy_from_cxl(_row);
 			if (rts < ts)
 				rts = ts;
 			rc = RCOK;
@@ -211,7 +212,8 @@ RC Row_ts::access(txn_man * txn, TsType type, row_t * row) {
             goto final;
 		} else { 
 			// the write is output. 
-			_row->copy(row);
+			// _row->copy(row);
+			_row->copy_to_cxl(row);
 			if (wts < ts)
 				wts = ts;
 			// debuffer the P_REQ
@@ -252,7 +254,7 @@ void Row_ts::update_buffer() {
 		// for each debuffered readreq, perform read.
 		TsReqEntry * req = ready_read;
 		while (req != NULL) {			
-			req->txn->cur_row->copy(_row);
+			req->txn->cur_row->copy_from_cxl(_row);
 			if (rts < req->ts)
 				rts = req->ts;
 			req->txn->ts_ready = true;
@@ -282,7 +284,7 @@ void Row_ts::update_buffer() {
 			req = req->next;
 		}
 		// perform write.
-		_row->copy(young_req->row);
+		_row->copy_to_cxl(young_req->row);
 		if (wts < young_req->ts)
 			wts = young_req->ts;
 		return_req_list(ready_write);

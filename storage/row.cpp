@@ -14,6 +14,7 @@
 #include "row_vll.h"
 #include "mem_alloc.h"
 #include "manager.h"
+#include <iomanip>
 
 RC 
 row_t::init(table_t * host_table, uint64_t part_id, uint64_t row_id) {
@@ -118,22 +119,41 @@ char * row_t::get_value(char * col_name) {
 	return &data[pos];
 }
 
-char * row_t::get_data() { return data; }
+char * row_t::get_data() { 
+	return data; 
+}
 
 void row_t::set_data(char * data, uint64_t size) { 
+	SimAccessCXLType3();
 	memcpy(this->data, data, size);
+	// SimAccessCXLType2();
+	SimAccessReset();
 }
+
+void row_t::copy_from_cxl(row_t* source) {
+	SimAccessCXLType3Read();
+	memcpy(this->data, source->data, source->get_tuple_size());
+	// SimAccessCXLType2();
+	SimAccessReset();
+}
+
+void row_t::copy_to_cxl(row_t* source) {
+	SimAccessCXLType3Write();
+	memcpy(this->data, source->data, source->get_tuple_size());
+	// SimAccessCXLType2();
+	SimAccessReset();
+}
+
 // copy from the src to this
-void row_t::copy(row_t * src) {
-	set_data(src->get_data(), src->get_tuple_size());
-}
+// void row_t::copy(row_t * src) {
+// 	set_data(src->get_data(), src->get_tuple_size());
+// }
 
 void row_t::free_row() {
 	free(data);
 }
 
 RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
-	SimAccessCXLType2();
 	RC rc = RCOK;
 #if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == DL_DETECT
 	uint64_t thd_id = txn->get_thd_id();
@@ -145,6 +165,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	rc = PROFILE_RET(time_shared_row_cmt, this->manager->lock_get, lt, txn, txnids, txncnt);
 #else
 	// rc = this->manager->lock_get(lt, txn);
+	SimAccessCXLType2();
 	rc = PROFILE_RET(time_shared_row_cmt, this->manager->lock_get, lt, txn);
 #endif
 
@@ -224,12 +245,12 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	txn->cur_row = (row_t *) mem_allocator.alloc(sizeof(row_t), this->get_part_id());
 	txn->cur_row->init(get_table(), this->get_part_id());
   #endif
+	SimAccessCXLType2();
 
 	// TODO: need to initialize the table/catalog information.
 	TsType ts_type = (type == RD)? R_REQ : P_REQ; 
 
 	// rc = this->manager->access(txn, ts_type, row);
-
 	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, ts_type, row);
 
 	if (rc == RCOK ) {
@@ -253,7 +274,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	txn->cur_row = (row_t *) mem_allocator.alloc(sizeof(row_t), get_part_id());
 	txn->cur_row->init(get_table(), get_part_id());
 	// rc = this->manager->access(txn, R_REQ);
-
+	SimAccessCXLType2();
 	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, R_REQ);
 	row = txn->cur_row;
 	SimAccessReset();
@@ -262,11 +283,13 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	// like OCC, tictoc also makes a local copy for each read/write
 	row->table = get_table();
 	TsType ts_type = (type == RD)? R_REQ : P_REQ; 
+	SimAccessCXLType2();
 	// rc = this->manager->access(txn, ts_type, row);
 	rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, ts_type, row);
 	SimAccessReset();
 	return rc;
 #elif CC_ALG == HSTORE || CC_ALG == VLL
+	SimAccessCXLType2();
 	row = this;
 	SimAccessReset();
 	return rc;
@@ -290,9 +313,10 @@ void row_t::return_row(access_t type, txn_man * txn, row_t * row) {
 	assert (row == NULL || row == this || type == XP);
 	if (ROLL_BACK && type == XP) {// recover from previous writes.
 		// this->copy(row);
-		PROFILE_VOID(time_shared_row_abort, this->copy, row);
+		PROFILE_VOID(time_shared_row_abort, this->copy_to_cxl, row);
 	}
 	// this->manager->lock_release(txn);
+	SimSyncWrite((unsigned long)this->data, this->get_tuple_size());
 	PROFILE_VOID(time_shared_row_abort, this->manager->lock_release, txn);
 #elif CC_ALG == TIMESTAMP || CC_ALG == MVCC 
 	// for RD or SCAN or XP, the row should be deleted.
@@ -312,15 +336,17 @@ void row_t::return_row(access_t type, txn_man * txn, row_t * row) {
 		assert (row->get_schema() == this->get_schema());
 		// RC rc = this->manager->access(txn, W_REQ, row);
 		// PROFILE_VOID(time_shared_row_cmt, this->manager->access, txn, W_REQ, row);
-		RC rc = PROFILE_RET(time_shared_row_abort, this->manager->access, txn, W_REQ, row);
-
+		RC rc = PROFILE_RET(time_shared_row_cmt, this->manager->access, txn, W_REQ, row);
+		SimSyncWrite((unsigned long)this->data, this->get_tuple_size());
 		assert(rc == RCOK);
 	}
 #elif CC_ALG == OCC
 	assert (row != NULL);
-	if (type == WR)
+	if (type == WR) {
+		PROFILE_VOID(time_shared_row_cmt, this->manager->write, row, txn->end_ts);
+		SimSyncWrite((unsigned long)this->data, this->get_tuple_size());
 		// manager->write( row, txn->end_ts );
-		PROFILE_VOID(time_shared_row_abort, this->manager->write, row, txn->end_ts);
+	}
 	row->free_row();
 	mem_allocator.free(row, sizeof(row_t));
 	SimAccessReset();

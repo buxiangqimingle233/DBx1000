@@ -261,6 +261,7 @@ inline uint64_t get_real_clock() {
     __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
     uint64_t ret = ( (uint64_t)lo)|( ((uint64_t)hi)<<32 );
 	ret = (uint64_t) ((double)ret / CPU_FREQ);
+	// printf("TIME GET: %ld\n", ret);
 #else 
 	timespec * tp = new timespec;
     clock_gettime(CLOCK_REALTIME, tp);
@@ -272,7 +273,12 @@ inline uint64_t get_real_clock() {
 
 inline uint64_t get_sys_clock() {
 #if SNIPER
-	// printf("TIME GET: %ld\n", SimGetEmuTime());
+    // unsigned hi, lo;
+    // __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    // uint64_t ret = ( (uint64_t)lo)|( ((uint64_t)hi)<<32 );
+	// ret = (uint64_t) ((double)ret / CPU_FREQ);
+	// printf("TIME GET: %ld\n", ret);
+	// return ret;
 	return SimGetEmuTime();
 #endif
 #ifndef NOGRAPHITE

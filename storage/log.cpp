@@ -291,7 +291,6 @@ LogManager::tryFlush()
 	{	
 		return 0;
 	}
-
 	if(ready_lsn - *_persistent_lsn < g_flush_blocksize)
 	{
 		INC_INT_STATS(int_flush_time_interval, 1); // caused by time larger than _flush_interval
@@ -311,7 +310,10 @@ LogManager::tryFlush()
 	if(end_lsn - start_lsn > g_flush_blocksize)
 		end_lsn = start_lsn + g_flush_blocksize;
 
+	// SNIPER Do not allow flushing 
+#if !SNIPER
 	flush(start_lsn, end_lsn);
+#endif
 	/*******************************/
 
 	COMPILER_BARRIER
@@ -329,7 +331,6 @@ LogManager::tryFlush()
 		assert(bytes == sizeof(ready_lsn));
 		fsync(_fd);
 	}
-
 	return end_lsn - start_lsn;
 }
 

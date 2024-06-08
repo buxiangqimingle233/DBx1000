@@ -88,10 +88,11 @@ Query_thd::init(workload * h_wl, int thread_id) {
 		queries[qid].init(thread_id, h_wl);
 #endif
 	}
+	max_q_cnt = request_cnt;
 }
 
 base_query * 
 Query_thd::get_next_query() {
-	base_query * query = &queries[q_idx++];
+	base_query * query = &queries[(q_idx++) % max_q_cnt];
 	return query;
 }

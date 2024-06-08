@@ -31,9 +31,7 @@ Row_silo::access(txn_man * txn, TsType type, row_t * local_row) {
 			v = _tid_word;
 		}
 		// local_row->copy(_row);
-		SimAccessCXLType3();
-		PROFILE_VOID(time_shared_record, local_row->copy, _row);
-		SimAccessReset();
+		PROFILE_VOID(time_shared_record, local_row->copy_from_cxl, _row);
 		COMPILER_BARRIER
 		v2 = _tid_word;
 	} 
@@ -49,17 +47,27 @@ Row_silo::access(txn_man * txn, TsType type, row_t * local_row) {
 
 bool
 Row_silo::validate(ts_t tid, bool in_write_set) {
+	SimAccessCXLType2();
 #if ATOMIC_WORD
 	uint64_t v = _tid_word;
-	if (in_write_set)
-		return tid == (v & (~LOCK_BIT));
-
-	if (v & LOCK_BIT) 
+	if (in_write_set) {
+		bool res = (tid == (v & (~LOCK_BIT)));
+		SimAccessReset();
+		return res;
+		// return tid == (v & (~LOCK_BIT));
+	}
+	if (v & LOCK_BIT) {
+		SimAccessReset();
 		return false;
-	else if (tid != (v & (~LOCK_BIT)))
+	}
+	else if (tid != (v & (~LOCK_BIT))) {
+		SimAccessReset();
 		return false;
-	else 
+	}
+	else {
+		SimAccessReset();
 		return true;
+	}
 #else
 	if (in_write_set)	
 		return tid == _tid;
@@ -73,7 +81,9 @@ Row_silo::validate(ts_t tid, bool in_write_set) {
 
 void
 Row_silo::write(row_t * data, uint64_t tid) {
-	_row->copy(data);
+	// _row->copy(data);
+	_row->copy_to_cxl(data);
+	SimSyncWrite((unsigned long)_row->data, _row->get_tuple_size());
 #if ATOMIC_WORD
 	uint64_t v = _tid_word;
 	M_ASSERT(tid > (v & (~LOCK_BIT)) && (v & LOCK_BIT), "tid=%ld, v & LOCK_BIT=%ld, v & (~LOCK_BIT)=%ld\n", tid, (v & LOCK_BIT), (v & (~LOCK_BIT)));
@@ -81,11 +91,13 @@ Row_silo::write(row_t * data, uint64_t tid) {
 #else
 	_tid = tid;
 #endif
+	SimAccessReset();
 }
 
 void
 Row_silo::lock() {
 #if ATOMIC_WORD
+	SimAccessCXLType2();
 	uint64_t v = _tid_word;
 	while ((v & LOCK_BIT) || !__sync_bool_compare_and_swap(&_tid_word, v, v | LOCK_BIT)) {
 		PAUSE
@@ -94,35 +106,47 @@ Row_silo::lock() {
 #else
 	pthread_mutex_lock( _latch );
 #endif
+	SimAccessReset();
 }
 
 void
 Row_silo::release() {
+	SimAccessCXLType2();
 #if ATOMIC_WORD
 	assert(_tid_word & LOCK_BIT);
 	_tid_word = _tid_word & (~LOCK_BIT);
 #else 
 	pthread_mutex_unlock( _latch );
 #endif
+	SimAccessReset();
 }
 
 bool
 Row_silo::try_lock()
 {
+	SimAccessCXLType2();
 #if ATOMIC_WORD
 	uint64_t v = _tid_word;
-	if (v & LOCK_BIT) // already locked
+	if (v & LOCK_BIT)  {
+		SimAccessReset();
+		// already locked
 		return false;
+	}
+	SimAccessReset();
 	return __sync_bool_compare_and_swap(&_tid_word, v, (v | LOCK_BIT));
 #else
+	SimAccessReset();
 	return pthread_mutex_trylock( _latch ) != EBUSY;
 #endif
+	
 }
 
 uint64_t 
 Row_silo::get_tid()
 {
+	SimAccessCXLType2();
 	assert(ATOMIC_WORD);
+	SimAccessReset();
 	return _tid_word & (~LOCK_BIT);
 }
 

@@ -36,6 +36,7 @@ host_ycsb_args = {
 
 
 DBMS_CFG = ["config-std.h", "config.h"]
+SIM_API = ["sim_api-std.h", "sim_api.h"]
 
 # ESSENTIAL CONFIGS
 cfg_base = {
@@ -52,6 +53,8 @@ env_base = {
     "SNIPER_CXL_LATENCY": 0,
     "SNIPER_MEM_LATENCY": 0,
 }
+
+
 
 arg_base = {
 }
@@ -288,8 +291,8 @@ def cxl_to_smp_slowdown_ycsb():
     # Env configs
     envs = [
         ("SNIPER", [1]),
-        ("SNIPER_CXL_LATENCY", [246]), # in ns
-        ("SNIPER_MEM_LATENCY", [170]), # in ns
+        ("SNIPER_CXL_LATENCY", [0, 847]), # in ns
+        ("SNIPER_MEM_LATENCY", [0, 456]), # in ns
     ]
 
     # Args configs
@@ -298,7 +301,7 @@ def cxl_to_smp_slowdown_ycsb():
         ("-w", [0, 0.2, 0.4, 0.6, 0.8, 1.0]),
         ("-z", [0, 0.2, 0.5, 0.7]),
         ("-R", [16]),
-        ("-Gx", [50]),
+        ("-Gx", [100]),
         ("-Ln", [4]),
         ("-t", [48]),
         ("-s", [2097152 * 48]),
@@ -308,54 +311,34 @@ def cxl_to_smp_slowdown_ycsb():
 
 
 @format_configs_decorator_filter_smp_cxl
-def cxl_to_smp_slowdown_tpcc():
-    # # DB configs
-    # cfgs = [
-    #     ("WORKLOAD", ['TPCC']),
-    #     ("CC_ALG", ["OCC", "SILO"]),
-    #     ("LOG_ALGORITHM", ['LOG_NO']),
-    # ]
-
-    # envs = [
-    #     ("SNIPER", [1]),
-    #     ("SNIPER_CXL_LATENCY", [0]), # in ns
-    #     ("SNIPER_MEM_LATENCY", [0]), # in ns
-    # ]
-
-    # # Args configs
-    # args = [
-    #     ("-p", [1]),
-    #     ("-n", [1, 16, 48]),
-    #     ("-Tp", [0.5, 1]),
-    #     ("-Gx", [50]),
-    #     ("-t", [48]),
-    #     ("-Ln", [1]),
-    # ]   # Same with Deneva
-
+def cc_respect2_read():
+    # DB configs
     cfgs = [
-        ("WORKLOAD", ['TPCC']),
-        # ("CC_ALG", ['WAIT_DIE', 'NO_WAIT']),
-        # ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'HEKATON', 'TICTOC', 'SILO', 'MVCC']),
-        ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'TICTOC', 'SILO', 'MVCC']),
+        ("WORKLOAD", ['YCSB']),
+        # ("CC_ALG", ['HEKATON', 'TICTOC', 'SILO']),
+        # ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'TICTOC', 'SILO', 'MVCC']),
+        ("CC_ALG", ['SILO']),
         ("LOG_ALGORITHM", ['LOG_NO']),
     ]
 
     # Env configs
     envs = [
         ("SNIPER", [1]),
-        ("SNIPER_CXL_LATENCY", [0, 246]), # in ns
-        ("SNIPER_MEM_LATENCY", [0, 170]), # in ns
+        ("SNIPER_CXL_LATENCY", [847]), # in ns
+        ("SNIPER_MEM_LATENCY", [456]), # in ns
     ]
 
     # Args configs
     args = [
         ("-p", [1]),
-        ("-n", [1, 4, 8, 24, 48]),
-        ("-Tp", [0.5]),
-        ("-Gx", [50]),
+        ("-w", [0, 0.2, 0.4, 0.6, 0.8, 1.0]),
+        ("-z", [0, 0.5, 0.7, 0.8, 0.9]),
+        ("-R", [16]),
+        ("-Gx", [100]),
+        ("-Ln", [4]),
         ("-t", [48]),
-        ("-Ln", [1]),
-    ]   # Same with Deneva
+        ("-s", [1024 * 1024 * 3]),
+    ]   # Same with Denevaasdf
 
     return cfgs, args, envs
 
@@ -374,16 +357,20 @@ def cxl_to_smp_slowdown_tpcc():
     # Env configs
     envs = [
         ("SNIPER", [1]),
-        ("SNIPER_CXL_LATENCY", [0, 246]), # in ns
-        ("SNIPER_MEM_LATENCY", [0, 170]), # in ns
+        # ("SNIPER_CXL_LATENCY", [456]),
+        # ("SNIPER_MEM_LATENCY", [847]),
+        ("SNIPER_CXL_LATENCY", [0, 847]), # in ns
+        ("SNIPER_MEM_LATENCY", [0, 456]), # in ns
+        # ("SNIPER_CXL_LATENCY", [0, 246]), # in ns
+        # ("SNIPER_MEM_LATENCY", [0, 170]), # in ns
     ]
 
     # Args configs
     args = [
         ("-p", [1]),
-        ("-n", [1, 4, 8, 24, 48]),
+        ("-n", [4, 8, 24, 48]),
         ("-Tp", [0.5]),
-        ("-Gx", [50]),
+        ("-Gx", [100]),
         ("-t", [48]),
         ("-Ln", [1]),
     ]   # Same with Deneva
@@ -398,4 +385,5 @@ experiment_map = {
     "SDA_latency_breakdown": SDA_latency_breakdown,
     "cxl_to_smp_slowdown_ycsb": cxl_to_smp_slowdown_ycsb,
     "cxl_to_smp_slowdown_tpcc": cxl_to_smp_slowdown_tpcc,
+    "cc_respect2_read": cc_respect2_read
 }

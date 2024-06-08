@@ -3,6 +3,10 @@ import subprocess
 import datetime
 import os
 
+
+GB = 1024**3
+MB = 1024**2
+KB = 1024
 now = datetime.datetime.now()
 strnow=now.strftime("%Y%m%d-%H%M%S")    # TODO: add time
 
@@ -10,10 +14,14 @@ def get_executable_name(cfgs):
     assert "WORKLOAD" in cfgs, "WORKLOAD not found in cfgs"
     assert "CC_ALG" in cfgs, "CC_ALG not found in cfgs"
     assert "LOG_ALGORITHM" in cfgs, "LOG_ALGORITHM not found in cfgs"
+    ret = "rundb_" + cfgs['WORKLOAD'] + "_" + cfgs['CC_ALG'] + "_" + cfgs['LOG_ALGORITHM']
 
-    return "rundb_" + cfgs['WORKLOAD'] + "_" + cfgs['CC_ALG'] + "_" + cfgs['LOG_ALGORITHM']
+    if "INDEX_STRUCT" in cfgs:
+        ret += "_" + cfgs['INDEX_STRUCT']
 
-def get_result_home(cfg, arg, env, exp, timestamp=strnow):
+    return ret
+
+def get_result_home(cfg, arg, env, exp, timestamp):
     home = os.path.join(os.getcwd())
     sniper = env["SNIPER"]
     if sniper:
@@ -25,12 +33,28 @@ def get_result_home(cfg, arg, env, exp, timestamp=strnow):
 def get_work_name(cfg, arg, env):
     arg_value = "_".join(f"{key}{value}" for key, value in arg.items()) # TODO: really hard to read
     if env["SNIPER"]:
-        return strnow + "_" + "sniper_" + get_executable_name(cfg) + "_" + arg_value + "_CC_" + str(env["SNIPER_CXL_LATENCY"]) + "_MEM_" + str(env["SNIPER_MEM_LATENCY"])
+        # Old experiments depend on this
+        if "PRIMITIVE" not in env:
+            ret = strnow + "_" + "sniper_" + get_executable_name(cfg) + "_" + arg_value + "_CC_" + str(env["SNIPER_CXL_LATENCY"]) + "_MEM_" + str(env["SNIPER_MEM_LATENCY"])
+        # paperexps depend on this
+        ret = strnow + "_" + "sniper_" + get_executable_name(cfg) + "_" + arg_value + "_CC_" + str(env["SNIPER_CXL_LATENCY"]) + "_MEM_" + str(env["SNIPER_MEM_LATENCY"]) + "_PRIMITIVE_" + env["PRIMITIVE"] + "_NNODE_" + str(env["NNODE"]) + "_THREAD_PER_NODE_" + str(env["THREAD_PER_NODE"])
     else:
-        return strnow + "_" + "host_" + get_executable_name(cfg) + "_" + arg_value
+        ret = strnow + "_" + "host_" + get_executable_name(cfg) + "_" + arg_value
+
+    # suffix = [(cfg, "SIZE_PER_FIELD"), cfg, "INDEX_STRUCT"]
+    if "SIZE_PER_FIELD" in cfg:
+        ret += "_SIZE_PER_FIELD_" + str(cfg['SIZE_PER_FIELD'])
+    # suffix = []
+    # for a, key in suffix:
+    #     if key in a:
+    #         ret += "_" + key + "_" + str(a[key])
+
+    # print("Work name: ", ret)
+    return ret
+
 
 def get_log_path(cfg, arg, env, exp, timestamp):
-    result_home = get_result_home(cfg, arg, env, exp)
+    result_home = get_result_home(cfg, arg, env, exp, timestamp)
     log_name = get_work_name(cfg, arg, env) + ".log"
 
     # Replace the timestamp before the first "_" with the given one

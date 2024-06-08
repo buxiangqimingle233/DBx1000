@@ -56,6 +56,8 @@ RC workload::init_schema(string schema_file) {
 					elem_num ++;
 				}
 				assert(elem_num == 3);
+				// Enable configuration with g_size_per_field.
+				size = g_size_per_field == 0 ? size : g_size_per_field;
                 schema->add_col((char *)name.c_str(), size, (char *)type.c_str());
 				col_count ++;
 			}

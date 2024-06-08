@@ -147,8 +147,7 @@ RC index_btree::index_insert(idx_key_t key, itemid_t * item, int part_id) {
 		for (int i = 0; i < depth; i++)
 			release_latch(ex_list[i]);
 //			assert( release_latch(ex_list[i]) == LATCH_EX );
-	}
-	else { // split the nodes when necessary
+	} else { // split the nodes when necessary
 		rc = split_lf_insert(params, leaf, key, item);
 		for (int i = 0; i < depth; i++)
 			release_latch(ex_list[i]);
@@ -491,9 +490,9 @@ RC index_btree::insert_into_parent(
 		insert_idx ++;
 	// the parent has enough space, just insert into it
 	if (parent->num_keys < order - 1) {
-		for (UInt32 i = parent->num_keys-1; i >= insert_idx; i--) {
+		for (int i = parent->num_keys-1; i >= (int)insert_idx; --i) {
 			parent->keys[i + 1] = parent->keys[i];
-			parent->pointers[i+2] = parent->pointers[i+1];
+			parent->pointers[i + 2] = parent->pointers[i+1];
 		}
 		parent->num_keys ++;
 		parent->keys[insert_idx] = key;

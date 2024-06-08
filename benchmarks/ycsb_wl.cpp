@@ -21,11 +21,15 @@ int ycsb_wl::next_tid;
 RC ycsb_wl::init() {
 	workload::init();
 	next_tid = 0;
-	string path = "./benchmarks/YCSB_schema.txt";
+	// string path = "./benchmarks/YCSB_schema.txt";
+	std::string path = bin_directory + "/benchmarks/YCSB_schema.txt";
 	init_schema( path );
 	
-	init_table_parallel();
-//	init_table();
+	if (g_init_parallelism == 1) {
+		init_table();
+	} else {
+		init_table_parallel();
+	}
 	return RCOK;
 }
 
@@ -92,6 +96,7 @@ void ycsb_wl::init_table_parallel() {
 		pthread_create(&p_thds[i], NULL, threadInitTable, this);
 	threadInitTable(this);
 
+
 	for (uint32_t i = 0; i < g_init_parallelism - 1; i++) {
 		int rc = pthread_join(p_thds[i], NULL);
 		if (rc) {
@@ -157,5 +162,4 @@ RC ycsb_wl::get_txn_man(txn_man *& txn_manager, thread_t * h_thd){
 	txn_manager->init(h_thd, this, h_thd->get_thd_id());
 	return RCOK;
 }
-
 

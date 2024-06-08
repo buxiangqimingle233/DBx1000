@@ -242,6 +242,7 @@ final:
 				Access * access = accesses[ write_set[i] ];
 				access->orig_row->manager->write_data( 
 					access->data, commit_wts);
+
 				access->orig_row->manager->release();
 			}
 #else 

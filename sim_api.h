@@ -19,11 +19,15 @@
 #define SIM_CMD_SET_THREAD_NAME 14
 #define SIM_CMD_CHANGE_MEM_MODE 15
 #define SIM_GET_EMU_TIME        16
+#define SIM_SYNC_WRITE          17       
+#define SIM_FLUSH_WQ            18
 
 #define SIM_OPT_INSTRUMENT_DETAILED    0
 #define SIM_OPT_INSTRUMENT_WARMUP      1
 #define SIM_OPT_INSTRUMENT_FASTFORWARD 2
 
+#define CXL_TRACK_READ (1 << 11)
+#define CXL_TRACK_WRITE (1 << 10)
 #define CXL_STRONG_SNIPER_MODE ((1 << 2) | (1 << 1))
 #define CXL_WEAK_SNIPER_MODE (1 << 1)
 #define LOCAL_SNIPER_MODE (0)
@@ -121,12 +125,6 @@
 
 #endif
 
-// #define SimAccessStrongCC()   SimSetOwnFreqMHz(CXL_STRONG_SNIPER_MODE)
-// #define SimAccessWeakCC()     SimSetOwnFreqMHz(CXL_WEAK_SNIPER_MODE)
-// #define SimAccessLocal()      SimSetOwnFreqMHz(LOCAL_SNIPER_MODE)
-// #define SimAccessReset()      SimSetOwnFreqMHz(LOCAL_SNIPER_MODE)
-
-
 #define SimRoiStart()             SimMagic0(SIM_CMD_ROI_START)
 #define SimRoiEnd()               SimMagic0(SIM_CMD_ROI_END)
 #define SimGetProcId()            SimMagic0(SIM_CMD_PROC_ID)
@@ -143,23 +141,36 @@
 #define SimUser(cmd, arg)         SimMagic2(SIM_CMD_USER, cmd, arg)
 #define SimSetInstrumentMode(opt) SimMagic1(SIM_CMD_INSTRUMENT_MODE, opt)
 #define SimInSimulator()          (SimMagic0(SIM_CMD_IN_SIMULATOR)!=SIM_CMD_IN_SIMULATOR)
-#define SimSet
 
-#if SNIPER
-#define SimAccessCXLType2()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE)
-#define SimAccessCXLType3()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_WEAK_SNIPER_MODE)
+#define SimGetEmuTime()             SimMagic0(SIM_GET_EMU_TIME)
+
+#define SimAccessCXLType2()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
 #define SimAccessLocal()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
 #define SimAccessReset()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
 
-#define SimGetEmuTime()       SimMagic0(SIM_GET_EMU_TIME)
-#else
+#define CXLVANILLA 0
+#define CXTNL 1
 
-#define SimAccessCXLType2()         {}
-#define SimAccessCXLType3()         {}
-#define SimAccessLocal()            {}
-#define SimAccessReset()            {}
-#define SimGetEmuTime()             {}
-
+# if CXLVANILLA
+#define SimAccessCXLType3Read()     SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
+#define SimAccessCXLType3Write()    SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
+#define SimAccessCXLType3()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
+#define SimSyncWrite(addr, size)    {}
+#define SimFlushWQ()                {}
+# elif CXTNL
+#define SimAccessCXLType3Read()     SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_WEAK_SNIPER_MODE | CXL_TRACK_READ)
+#define SimAccessCXLType3Write()    SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_WEAK_SNIPER_MODE | CXL_TRACK_WRITE)
+#define SimAccessCXLType3()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_WEAK_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
+#define SimSyncWrite(addr, size)    SimMagic2(SIM_SYNC_WRITE, addr, size)
+#define SimFlushWQ()                SimMagic0(SIM_FLUSH_WQ)
+# else
+#define SimAccessCXLType3Read()     SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
+#define SimAccessCXLType3Write()    SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
+#define SimAccessCXLType3()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
+#define SimSyncWrite(addr, size)    {}
+#define SimFlushWQ()                {}
 #endif
+
+
 
 #endif /* __SIM_API */
