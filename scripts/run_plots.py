@@ -710,7 +710,9 @@ def cxl_breakdown_cpi_tpcc(exec_time):
     print(" ".join(breakdown_benchmarks))
 
 
-# Following codes are paper plots
+# ================================================
+# ======== Following codes are paper plots
+# ================================================
 
 def tput(exec_time):
 
@@ -854,32 +856,13 @@ def mem_cpi(exec_time):
         res = subprocess.Popen(memstatus_cmd, shell=True, cwd=home, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode()
         memstatus = parse_memstatus_output(res)
 
-
-        cpi_plot_tool = os.path.join(env["SNIPER_ROOT"], "tools/cpistack.py")
-        cpi_cmd = "{} {} {}".format("python2", cpi_plot_tool, "--cpi --partial roi-begin:roi-end")
-        res = subprocess.Popen(cpi_cmd, shell=True, cwd=home, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode()
-        cpi = parse_cpi_output(res)
-
-        def avg(lst):
-            return sum(lst) / len(lst)
-
-        cpi = {key: avg(value.values()) for key, value in cpi.items()}
-
         log_path = get_log_path(cfg, arg, env, bm, exec_time)
-        _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
+        ep_agent_status = parse_ep_agent(log_path)
 
-        compute = time_parts['time_log'] + time_parts['time_query'] + time_parts['useful_work'] + time_parts['time_index']
-        txn_manager_tl = time_parts['time_man'] + time_parts['time_cleanup'] + time_parts['time_wait']
-        memory_layer = time_parts['time_shared_record'] + time_parts['time_shared_metadata']
+        total_cxl_mem_access = memstatus['cxl-mem-read-cnt'] + memstatus['cxl-mem-write-cnt']
+        total_type3_dram_access = ep_agent_status['benchmark']['read'] + ep_agent_status['benchmark']['write']
 
-# 'sync-unscheduled',
-        useful_cpi_title = ['sync-futex', 'mem-remote', 'mem-l1d', 'mem-l3', 'mem-dram', 'base', 'other', 'sync-unscheduled']
-        total = sum([cpi.get(key, 0) for key in useful_cpi_title])
-
-        cxl_mem_acc = memstatus['cxl-mem-read-cnt'] + memstatus['cxl-mem-write-cnt']
-        mem_cpi = cpi.get('mem-l3', 0) + cpi.get('mem-dram', 0) + cpi.get('mem-remote', 0) + cpi.get('mem', 0) + cpi.get('mem-l1d', 0)
-
-        yval = [memstatus['directory-cxl-cache-overhead'] / cxl_mem_acc, memstatus['directory-cxl-bi-overhead'] / cxl_mem_acc, (memstatus['cxl-mem-overhead']) / cxl_mem_acc]
+        yval = [memstatus['directory-cxl-cache-overhead'] / total_cxl_mem_access, memstatus['directory-cxl-bi-overhead'] / total_cxl_mem_access, (memstatus['cxl-mem-overhead']) / total_cxl_mem_access]
 
         if env["PRIMITIVE"] == "CXLVANILLA":
             cxl_vanilla[name] = yval
@@ -1082,11 +1065,11 @@ def scalability_sensitivity(exec_time):
 
 def ep_agent_breakdown(exec_time):
     # bm = "ep_test"
-    # bm = "dram_latency_dist"
-    # variables = ["CC_ALG", "-n", "-Tp", "PRIMITIVE"]
+    bm = "dram_latency_dist"
+    variables = ["CC_ALG", "-n", "-Tp", "PRIMITIVE"]
 
-    bm = "tput_ycsb"
-    variables = ["-w", "-z", "CC_ALG"]
+    # bm = "dram_latency_dist_ycsb"
+    # variables = ["-w", "-z", "CC_ALG"]
     key_word = "847-456"
 
     if exec_time is None:
@@ -1100,6 +1083,105 @@ def ep_agent_breakdown(exec_time):
             continue
         if not (env['PRIMITIVE'] == 'CXTNL'):
             continue
+        log_path = get_log_path(cfg, arg, env, bm, exec_time)
+        name = gen_simplified_name(cfg, arg, env, variables)
+        _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
+
+        memstatus_tool = os.path.join(env["SNIPER_ROOT"], "tools/gen_memstatus.py")
+        home = get_sniper_result_dir(cfg, arg, env, bm, exec_time)
+        memstatus_cmd = "{} {} {}".format("python2", memstatus_tool, "--partial roi-begin:roi-end")
+        res = subprocess.Popen(memstatus_cmd, shell=True, cwd=home, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode()
+        memstatus = parse_memstatus_output(res)
+
+        ep_agent_status = parse_ep_agent(log_path)
+
+        total_cxl_mem_access = memstatus['cxl-mem-read-cnt'] + memstatus['cxl-mem-write-cnt']
+        total_type3_mem_access = memstatus['cxl-mem-type3-read-cnt'] + memstatus['cxl-mem-type3-write-cnt']
+        total_type3_read = memstatus['cxl-mem-type3-read-cnt']
+        total_type3_dram_access = ep_agent_status['benchmark']['read'] + ep_agent_status['benchmark']['write']
+
+        total_flush = ep_agent_status['benchmark']['flush']
+
+        vf_check = ep_agent_status['view-bloom-filter']['check']
+        vf_check_hit = ep_agent_status['view-bloom-filter']['hit']
+        vf_insert = ep_agent_status['view-bloom-filter']['add']
+
+        cf_check = ep_agent_status['cache-bloom-filter']['check']
+        cf_check_hit = ep_agent_status['cache-bloom-filter']['hit']
+        cf_insert = ep_agent_status['cache-bloom-filter']['add']
+
+        vat_check = vf_check_hit
+        vat_insert = ep_agent_status['cuckoo-view-table']['inserts']
+        vat_remove = ep_agent_status['cuckoo-view-table']['deletes']
+        vat_conflict = ep_agent_status['cuckoo-view-table']['conflicts']
+
+        # Only Consider Type3
+
+
+        # VAT Manipulation
+        vat_overhead = 50 * (vat_check + vat_insert + vat_remove)
+        # VF Query
+        vf_overhead = 4 * (vf_check + vf_insert)
+        # CF Query
+        cf_overhead = 4 * (cf_check + cf_insert)
+        # DRAM Controller
+        dram_ctrl_overhead = total_type3_dram_access * 50
+        # GSync
+        # gsync_overhead = ep_agent_status["benchmark"]["inv"] * 20
+
+        total_cxl_dram_access = (memstatus['cxl-mem-overhead'] - (vat_overhead + vf_overhead + cf_overhead)) / env["SNIPER_MEM_LATENCY"]
+        # Protocol Selection
+        selection_overhead = total_cxl_dram_access * 2
+
+        cxtnl_overhead = vat_overhead + max(vf_overhead, cf_overhead) + dram_ctrl_overhead + selection_overhead
+
+        # DRAM Access Ratio
+        dram_type3_to_cxl = total_type3_dram_access / total_cxl_dram_access
+        # CPU Issued Ratio
+        mem_type3_to_cxl = total_type3_mem_access / total_cxl_mem_access
+
+        # Access Distribution
+        legend = ["Bypass", "Partial Walk", "Complete Walk"]
+        total = total_cxl_dram_access
+        bypass = total_cxl_dram_access - total_type3_dram_access
+        complete_walk = vat_check + vat_insert + vat_remove
+        partial_walk = total - bypass - complete_walk
+
+        print(name, (total_type3_read - total_type3_dram_access) / total_type3_read, partial_walk / total_type3_read, complete_walk / total_type3_read)
+
+        print(name, partial_walk / total_type3_dram_access, vat_check / total, (vat_insert + vat_remove) / total)
+        # print(name, total_cxl_dram_access / total_cxl_mem_access)
+        # print(name, dram_type3_to_cxl, mem_type3_to_cxl, total_type3_dram_access / total_type3_mem_access, total_cxl_dram_access / total_cxl_mem_access)
+        # print(name, selection_overhead / cxtnl_overhead, \
+        #       max(vf_overhead, cf_overhead) / cxtnl_overhead, \
+        #       vat_overhead / cxtnl_overhead, \
+        #       dram_ctrl_overhead / cxtnl_overhead)
+
+
+
+def cache_hit_ratio(exec_time):
+
+    key_word = "847-456"
+    bm = "tput_tpcc"
+    variables = ["CC_ALG", "-n", "-Tp", "PRIMITIVE"]
+    # bm = "tput_ycsb"
+    # variables = ["-w", "-z", "CC_ALG", "PRIMITIVE"]
+    # bm = "ep_test"
+    # variables = ["CC_ALG", "-n", "-Tp", "PRIMITIVE"]
+
+
+    if exec_time is None:
+        exec_time = get_exec_time(bm, key_word)
+
+    cfgs, args, envs = paper_map[bm]()
+    cnt = 0
+    for arg, cfg, env in itertools.product(args, cfgs, envs):
+        if not (env["SNIPER_CXL_LATENCY"] > 0 and env["SNIPER_MEM_LATENCY"] > 0):
+            continue
+        if not (env["PRIMITIVE"] == "CXTNL"):
+            continue
+        # if not (cfg['CC_ALG'] == 'SILO'):
+            # continue
         log_path = get_log_path(cfg, arg, env, bm, exec_time)
         name = gen_simplified_name(cfg, arg, env, variables)
         _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
@@ -1163,14 +1245,10 @@ def ep_agent_breakdown(exec_time):
         complete_walk = vat_check + vat_insert + vat_remove
         partial_walk = total - bypass - complete_walk
 
-        print(name, bypass / total, partial_walk / total, complete_walk / total, total_flush)
-
-        # print(name, dram_type3_to_cxl, mem_type3_to_cxl, total_type3_dram_access / total_type3_mem_access, total_cxl_dram_access / total_cxl_mem_access)
-        # print(name, selection_overhead / cxtnl_overhead, \
-        #       vat_overhead / cxtnl_overhead, \
-        #       max(vf_overhead, cf_overhead) / cxtnl_overhead, \
-        #       dram_ctrl_overhead / cxtnl_overhead)
-
+        print(name, dram_type3_to_cxl)
+        cnt += 1
+        if not cnt % 5:
+            print()
 
 def latency_dist(exec_time):
     bm = "dram_latency_dist"
@@ -1203,7 +1281,7 @@ def latency_dist(exec_time):
 def bus_tput(exec_time):
     bm = "bus_bw"
     variables = ["-n", "-t"]
-    key_word = "16 nodes"
+    key_word = "vanilla"
 
     if exec_time is None:
         exec_time = get_exec_time(bm, key_word)
@@ -1214,42 +1292,87 @@ def bus_tput(exec_time):
 
     def average(lst):
         return sum(lst) / len(lst)
-    yvals, xvals = [], []
+        # return max(lst)
+    yvals, xvals, names = [], [], []
     for arg, cfg, env in itertools.product(args, cfgs, envs):
         arg['-t'] = env["THREAD_PER_NODE"] * env["NNODE"]
         log_path = get_log_path(cfg, arg, env, bm, exec_time)
         name = gen_simplified_name(cfg, arg, env, variables)
         interval = 1e4 / 1e9        # in s
-        bus_traffic = parse_bus_traffic(log_path, interval)
-        # Calculate the average, p99, p75, and p25
-        avg = np.mean(bus_traffic)
-        p99 = np.percentile(bus_traffic, 99)
-        p75 = np.percentile(bus_traffic, 75)
-        p50 = np.percentile(bus_traffic, 50)
-        p25 = np.percentile(bus_traffic, 25)
+        try:
+            bus_traffic = parse_bus_traffic(log_path, interval)
+            # Calculate the average, p99, p75, and p25
+            avg = np.mean(bus_traffic)
+            p99 = np.percentile(bus_traffic, 99)
+            p75 = np.percentile(bus_traffic, 75)
+            p50 = np.percentile(bus_traffic, 50)
+            p25 = np.percentile(bus_traffic, 25)
 
-        print(name, avg, p99, p75, p50, p25)
+            print(name, avg, p99, p75, p50, p25)
 
-        bus_traffic = bus_traffic[:len(bus_traffic) // 3]
-        avg_field = 2
-        bus_traffic = [average(bus_traffic[i:i + avg_field]) for i in range(0, len(bus_traffic), avg_field)]
-        yvals.append(bus_traffic)
-        # Set labels and title
-        xvals = [i * interval * 1e3 for i in range(len(bus_traffic))]
-        
-    fig, ax = plt.subplots(figsize=(14, 8))
-    ax.plot(xvals, yvals[0])
-    ax.plot(xvals, yvals[1])
-    ax.set_xlabel("Time (ms)")
-    ax.set_ylabel("BW Usage (GB/s)")
+            bus_traffic = bus_traffic[:len(bus_traffic) // 2]
+            avg_field = 5
+            bus_traffic = [average(bus_traffic[i:i + avg_field]) for i in range(0, len(bus_traffic), avg_field)]
+            bus_traffic = [i for i in bus_traffic]  # 512 bits
+            yvals.append(bus_traffic)
+            # Set labels and title
+            xvals = [i * interval * 1e3 for i in range(len(bus_traffic))]
+            names.append(name)
+        except: 
+            yvals.append([0] * len(bus_traffic))
+            names.append(name)
+
+    fig, ax = plt.subplots(figsize=(14, 6))
+    for i, y in enumerate(yvals):
+        ax.plot(xvals, y, label=names[i])
+
+    # ax.plot(xvals, yvals[0], label="16 nodes")
+    # ax.plot(xvals, yvals[1], color="black", label="8 nodes")
+    # ax.legend(["64 nodes", "8 nodes"], loc='upper center', fontsize='x-large')
+    ax.set_xlabel("Timeline (ms)")
+    ax.set_ylabel("BW Usage (%)")
     ax.set_ylim(bottom=0)
     ax.set_facecolor("none")  # Set background to no fill
     plt.tight_layout()
-    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5, color="black")
     plt.show()
     plt.tight_layout()
     plt.savefig("./dram_bus_traffic.png")
     plt.clf()
+
+
+def latency_tput_tpcc(exec_time):
+    # bm = "latency_tput_tpcc_tight"
+    # variables = ["CC_ALG", "-n", "-Tp", "PRIMITIVE"]
+    bm = "latency_tput_ycsb"
+    variables = ["-w", "-z", "CC_ALG", "-t"]
+    key_word = "847-456"
+    # key_word = "OCC"
+
+    if exec_time is None:
+        exec_time = get_exec_time(bm, key_word)
+
+    cfgs, args, envs = paper_map[bm]()
+    yvals, xvals = [], []
+    for arg, cfg, env in itertools.product(args, cfgs, envs):
+        if not (env['PRIMITIVE'] == 'CXLVANILLA'):
+            continue
+        arg = arg.copy()
+        if arg['-t'] == -1:
+            arg['-t'] = env["THREAD_PER_NODE"] * env["NNODE"]
+        log_path = get_log_path(cfg, arg, env, bm, exec_time)
+        name = gen_simplified_name(cfg, arg, env, variables)
+        _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
+        tput = (txn_cnt - abort_cnt) / (run_time / arg['-t'])
+        m = time_parts["median_latency"]
+        print(name, tput, m)
+        yvals.append(f"{tput} {m}")
+        xvals.append(name)
+
+    # for i in range(0, len(yvals), 8):
+    #     print(" ".join(map(str, yvals[i:i + 8])))
+        # print(" ".join(map(lambda x, yvals[i:i + 8])))
+        # print(name, tput, time_parts["median_latency"])
 
 
 import argparse

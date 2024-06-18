@@ -39,9 +39,13 @@ def parse_log(file_path):
                 for key in ['time_wait', 'time_ts_alloc', 'time_shared_record', 'time_shared_metadata', 'time_man', 'time_index', 'time_cleanup', 'time_query', 'time_log']:
                     match = re.search(rf"{key}=(-?\d+\.\d+)", line)
                     time_parts[key] = float(match.group(1)) if match else 0
-                
+
                 # if run_time > sum(time_parts.values()):
                 time_parts['useful_work'] = max(run_time - sum(time_parts.values()), 0)
+
+                for key in ['median_latency', 'latency']:
+                    match = re.search(rf"{key}=(-?\d+\.\d+)", line)
+                    time_parts[key] = float(match.group(1)) if match else 0
 
 
     return config_info, txn_count_total, abort_count_total, run_time, time_parts

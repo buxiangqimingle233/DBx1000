@@ -2,6 +2,9 @@
 #include "helper.h"
 #include "stats.h"
 #include "mem_alloc.h"
+#include <queue>
+#include <functional>
+#include <algorithm>
 
 #define BILLION 1000000000UL
 
@@ -35,6 +38,9 @@ void Stats_thd::clear() {
 
 	time_shared_row_cmt = 0;
 	time_shared_record = 0;
+
+	while (!lower.empty()) { lower.pop(); };
+	while (!upper.empty()) { upper.pop(); };
 }
 
 void Stats_tmp::init() {
@@ -170,13 +176,14 @@ void Stats::print() {
 			_stats[tid]->abort_cnt
 		);
 	}
+
 	FILE * outf;
 	if (output_file != NULL) {
 		outf = fopen(output_file, "w");
 		fprintf(outf, "[summary] txn_cnt=%ld, abort_cnt=%ld"
 		", run_time=%f, time_wait=%f, time_ts_alloc=%f"
 		", time_shared_record=%f, time_shared_metadata=%f"
-		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
+		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f, median_latency=%f"
 		", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
 		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
 		", time_log=%f, log_abort_cnt=%ld", 
@@ -191,6 +198,7 @@ void Stats::print() {
 		total_time_index / BILLION, 		// time_index
 		(total_time_abort - total_time_shared_row_abort) / BILLION,	// time_abort
 		(total_time_cleanup - total_time_shared_row_abort) / BILLION,	// time_cleanup
+		get_median() / BILLION, 
 		total_latency / BILLION / total_txn_cnt,
 		deadlock,
 		cycle_detect,
@@ -209,7 +217,7 @@ void Stats::print() {
 	printf("[summary] txn_cnt=%ld, abort_cnt=%ld"
 		", run_time=%f, time_wait=%f, time_ts_alloc=%f"
 		", time_shared_record=%f, time_shared_metadata=%f"
-		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
+		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f, median_latency=%f"
 		", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
 		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
 		", time_log=%f, log_abort_cnt=%ld", 
@@ -224,6 +232,7 @@ void Stats::print() {
 		total_time_index / BILLION, 		// time_index
 		(total_time_abort - total_time_shared_row_abort) / BILLION,	// time_abort
 		(total_time_cleanup - total_time_shared_row_abort) / BILLION,	// time_cleanup
+		get_median() / BILLION, 
 		total_latency / BILLION / total_txn_cnt,
 		deadlock,
 		cycle_detect,
@@ -257,4 +266,51 @@ void Stats::print_lat_distr() {
 		}
 		fclose(outf);
 	} 
+}
+
+
+void Stats::update_median(uint64_t tid, double latency) {
+    // Add the number to the appropriate heap
+	auto& lower = _stats[tid]->lower;
+	auto& upper = _stats[tid]->upper;
+
+    if (lower.empty() || latency < lower.top()) {
+        lower.push(latency);
+    } else {
+        upper.push(latency);
+    }
+
+    // Balance the heaps
+    if (lower.size() > upper.size() + 1) {
+        upper.push(lower.top());
+        lower.pop();
+    } else if (upper.size() > lower.size()) {
+        lower.push(upper.top());
+        upper.pop();
+    }
+}
+
+double Stats::get_median() {
+	std::vector<double> medians(g_thread_cnt, 0);
+	for (unsigned int tid = 0; tid < g_thread_cnt; tid ++) {
+		auto& lower = _stats[tid]->lower;
+		auto& upper = _stats[tid]->upper;
+		if (lower.size() == upper.size()) {
+			medians[tid] = (lower.top() + upper.top()) / 2.0;
+		} else if (lower.size() > upper.size()) {
+			medians[tid] = lower.top();
+		} else {
+			medians[tid] = upper.top();
+		}
+	}
+    // Sort the medians
+    std::sort(medians.begin(), medians.end());
+
+    // Find the median of the medians
+    size_t size = medians.size();
+    if (size % 2 == 0) {
+        return (medians[size / 2 - 1] + medians[size / 2]) / 2.0;
+    } else {
+        return medians[size / 2];
+    }
 }

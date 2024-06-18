@@ -38,7 +38,7 @@ def compile_binary(cfg, env):
     print("PASS Compile\t\talg=%s,\tworkload=%s" % (cfg['CC_ALG'], cfg['WORKLOAD']))
 
 
-def run_script_in_docker_container(container_name, script, max_retries=3, timeout_seconds=1200):
+def run_script_in_docker_container(container_name, script, max_retries=3, timeout_seconds=1800):
     # Check if the Docker container is running
     cmd = f"docker ps --filter name={container_name} --format '{{{{.Names}}}}'"
     output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
@@ -107,6 +107,8 @@ def run_binary(cfg: dict, arg: dict, env: dict, exp, retry=0):
         NTHREAD_PER_NODE = env["THREAD_PER_NODE"]
         NNODE = env["NNODE"]
         total_threads = NTHREAD_PER_NODE * NNODE
+        if total_threads % 64 != 0:
+            total_threads = total_threads + (64 - (total_threads % 64))  # Sniper Bugs: Make sure perf_model/dram/controllers_interleaving is a multiple of perf_model/l3_cache/shared_cores
 
         recorder_args = []
         # recorder_args += ["--no-cache-warming", "-d", result_dir, "--cache-only", "-n", total_threads]

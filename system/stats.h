@@ -1,5 +1,8 @@
 #pragma once 
 
+#include <queue>
+#include <functional>
+
 class Stats_thd {
 public:
 	void init(uint64_t thd_id);
@@ -35,6 +38,9 @@ public:
 	uint64_t * all_debug1;
 	uint64_t * all_debug2;
 	char _pad[CL_SIZE];
+
+	std::priority_queue<double> lower;  // Max heap
+    std::priority_queue<double, std::vector<double>, std::greater<double>> upper;  // Min heap
 };
 
 class Stats_tmp {
@@ -69,4 +75,6 @@ public:
 	void abort(uint64_t thd_id);
 	void print();
 	void print_lat_distr();
+	void update_median(uint64_t thd_id, double num);
+	double get_median();
 };

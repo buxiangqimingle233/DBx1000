@@ -148,8 +148,8 @@
 #define SimAccessLocal()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
 #define SimAccessReset()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
 
-#define CXLVANILLA 0
-#define CXTNL 1
+#define CXLVANILLA 1
+#define CXTNL 0
 
 # if CXLVANILLA
 #define SimAccessCXLType3Read()     SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)

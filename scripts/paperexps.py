@@ -194,6 +194,112 @@ def tput_tpcc():
 
 
 @format_configs_decorator_filter_smp_cxl
+def latency_tput_tpcc():
+
+    cfgs = [
+        ("WORKLOAD", ['TPCC']),
+        ("CC_ALG", ['SILO']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [847]), # in ns
+        ("SNIPER_MEM_LATENCY", [456]), # in ns
+        # ("SNIPER_CXL_LATENCY", [246]), # in ns
+        # ("SNIPER_MEM_LATENCY", [170]),
+        ("PRIMITIVE", ["CXLVANILLA", "CXTNL"]),
+        ("NNODE", [8]),
+        ("THREAD_PER_NODE", [1, 2, 3, 4, 5, 6, 7, 8]),   # 8 worker + 1 logger
+    ]
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-n", [8, 64]),
+        ("-Tp", [0.5, 0]),
+        ("-Gx", [50]),
+        ("-t", [-1]),
+        ("-Ln", [1]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator_filter_smp_cxl
+def latency_tput_tpcc_tight():
+
+    cfgs = [
+        ("WORKLOAD", ['TPCC']),
+        ("CC_ALG", ['OCC']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [847]), # in ns
+        ("SNIPER_MEM_LATENCY", [456]), # in ns
+        # ("SNIPER_CXL_LATENCY", [246]), # in ns
+        # ("SNIPER_MEM_LATENCY", [170]),
+        ("PRIMITIVE", ["CXLVANILLA", "CXTNL"]),
+        ("NNODE", [8]),
+        ("THREAD_PER_NODE", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),   # 8 worker + 1 logger
+    ]
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-n", [64]),
+        ("-Tp", [0]),
+        ("-Gx", [50]),
+        ("-t", [-1]),
+        ("-Ln", [1]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator_filter_smp_cxl
+def latency_tput_ycsb():
+    # DB configs
+    cfgs = [
+        ("WORKLOAD", ['YCSB']),
+        ("CC_ALG", ['SILO']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("PRIMITIVE", ["CXLVANILLA", "CXTNL"]),
+        # ("SNIPER_CXL_LATENCY", [246]), # in ns
+        # ("SNIPER_MEM_LATENCY", [170]),
+        ("SNIPER_CXL_LATENCY", [847]), # in ns
+        ("SNIPER_MEM_LATENCY", [456]), # in ns
+        ("NNODE", [8]),
+        ("THREAD_PER_NODE", [1, 2, 3, 4, 5, 6, 7, 8]),   # 8 worker + 1 logger
+    ]
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-w", [0, 0.7]),
+        ("-z", [0, 0.8]),
+        ("-R", [16]),
+        ("-Gx", [50]),
+        ("-Ln", [4]),
+        ("-t", [-1]),
+        ("-s", [16 * MB]),  # 16M * 1000B per node
+    ]   # Keep same with Deneva
+
+    return cfgs, args, envs
+
+
+
+
+@format_configs_decorator_filter_smp_cxl
 def debug_ycsb():
     # DB configs
     cfgs = [
@@ -489,15 +595,15 @@ def bus_bw():
         ("SNIPER", [1]),
         ("SNIPER_CXL_LATENCY", [847]), # in ns
         ("SNIPER_MEM_LATENCY", [456]), # in ns
-        ("PRIMITIVE", ["CXTNL"]),
-        ("NNODE", [16, 8]),
+        ("PRIMITIVE", ["CXTNL", "CXL_VANILLA"]),
+        ("NNODE", [16]),
         ("THREAD_PER_NODE", [8]),
     ]
 
     # Args configs
     args = [
         ("-p", [1]),
-        ("-n", [64]),
+        ("-n", [128]),
         ("-Tp", [0]),
         ("-Gx", [500]),
         ("-t", [-1]),
@@ -519,13 +625,17 @@ experiment_map = {
     "ep_test": ep_test,
     "dram_latency_dist": dram_latency_dist,
     "dram_latency_dist_ycsb": dram_latency_dist_ycsb,
-    "bus_bw":bus_bw
+    "bus_bw": bus_bw,
+    "latency_tput_tpcc": latency_tput_tpcc,
+    "latency_tput_tpcc_tight": latency_tput_tpcc_tight,
+    "latency_tput_ycsb": latency_tput_ycsb
 }
 
 time_map = {
     "tput_tpcc": {
-        "20240528-211236": "847-456 ns, 2KB/core SF",
-        "20240531-114512": "246-170 ns, 16KB/core SF",
+        "20240528-211236": "847-456 ns, 2KB/core SF, 8 channel",
+        "20240531-114512": "246-170 ns, 16KB/core SF, 8 channel",
+        "20240613-022305": "847-456 ns, 2 channel"
     },
     "tput_ycsb": {
         "20240530-191418": "847-456 ns, 16KB/core SF, 200B record / tuple",
@@ -550,10 +660,20 @@ time_map = {
         "20240607-172212": "847-456 ns, 16KB/core SF, Enable Distributed DRAM Latency",
     },
     "dram_latency_dist_ycsb": {
-        "20240607-162758": "847-456 ns, 16KB/core SF, Enable Distributed DRAM Latency",
+        "20240607-222421": "847-456 ns, 16KB/core SF, Enable Distributed DRAM Latency",
     },
     "bus_bw": {
         "20240608-123348": "847-456 ns, 16KB/core SF, TPC-C Enable BUS Tracking, Enable Distributed DRAM Latency",
-        "20240608-162718": "847-456 ns, 16KB/core SF, TPC-C Enable BUS Tracking, Enable Distributed DRAM Latency, 16 nodes",
+        # "20240608-162718": "847-456 ns, 16KB/core SF, TPC-C Enable BUS Tracking, Enable Distributed DRAM Latency, 16 nodes",
+        "20240609-172705": "847-456 ns, 16KB/core SF, TPC-C Enable BUS Tracking, Enable Distributed DRAM Latency, CXL vanilla",
+    },
+    "latency_tput_tpcc": {
+        "20240611-001805": "847-456 ns, no bus tracking, no uncore latency tracking, SILO"
+    },
+    "latency_tput_tpcc_tight": {
+        "20240612-112843": "847-456 ns, no bus tracking, no uncore latency tracking, OCC, 2 channel in CXL"
+    },
+    "latency_tput_ycsb": {
+        "20240611-041321": "847-456 ns, no bus tracking, no uncore latency tracking"
     }
 }

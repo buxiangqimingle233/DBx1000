@@ -176,8 +176,11 @@ RC thread_t::run() {
 
 		ts_t endtime = get_sys_clock();
 		uint64_t timespan = endtime - starttime;
+
 		INC_STATS(get_thd_id(), run_time, timespan);
 		INC_STATS(get_thd_id(), latency, timespan);
+		UPDATE_LAT_MEDIAN(get_thd_id(), timespan);
+
 		//stats.add_lat(get_thd_id(), timespan);
 		if (rc == RCOK) {
 			INC_STATS(get_thd_id(), txn_cnt, 1);

@@ -109,6 +109,10 @@
 
 #define INC_TMP_STATS(tid, name, value) INC_STATS(tid, name, value)
 
+#define UPDATE_LAT_MEDIAN(tid, value) \
+	if (STATS_ENABLE) \
+		stats.update_median(tid, value);
+
 /*
 #define INC_TMP_STATS(tid, name, value) \
 	if (STATS_ENABLE) \
