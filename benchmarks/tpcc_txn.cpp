@@ -9,6 +9,7 @@
 #include "index_hash.h"
 #include "index_btree.h"
 #include "tpcc_const.h"
+#include "sim_api.h"
 
 void tpcc_txn_man::init(thread_t * h_thd, workload * h_wl, uint64_t thd_id) {
 	txn_man::init(h_thd, h_wl, thd_id);
@@ -250,6 +251,13 @@ RC tpcc_txn_man::run_new_order(tpcc_query * query) {
     uint64_t d_id = query->d_id;
     uint64_t c_id = query->c_id;
 	uint64_t ol_cnt = query->ol_cnt;
+
+#if CXLRPC
+	if (remote) {
+		SimInsertLatency(4410);
+	}
+#endif
+
 	/*=======================================================================+
 	EXEC SQL SELECT c_discount, c_last, c_credit, w_tax
 		INTO :c_discount, :c_last, :c_credit, :w_tax

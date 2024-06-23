@@ -5,6 +5,7 @@
 // Simulation + Hardware
 /***********************************************/
 #define SNIPER 						0
+#define CXLRPC						0
 
 #define THREAD_CNT					4
 #define PART_CNT					1 
@@ -180,6 +181,7 @@
 #define TPCC_ACCESS_ALL 			false 
 #define WH_UPDATE					true
 #define NUM_WH 						1
+#define MPR							0.1
 //
 enum TPCCTxnType {TPCC_ALL, 
 				TPCC_PAYMENT, 

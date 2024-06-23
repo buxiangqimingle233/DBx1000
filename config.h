@@ -5,6 +5,7 @@
 // Simulation + Hardware
 /***********************************************/
 #define SNIPER 1
+#define CXLRPC						0
 
 #define THREAD_CNT					4
 #define PART_CNT					1 
@@ -90,7 +91,7 @@
 /***********************************************/
 // WAIT_DIE, NO_WAIT, DL_DETECT, TIMESTAMP, MVCC, HEKATON, HSTORE, OCC, VLL, TICTOC, SILO
 // TODO TIMESTAMP does not work at this moment
-#define CC_ALG SILO
+#define CC_ALG OCC
 #define ISOLATION_LEVEL 			SERIALIZABLE
 
 // all transactions acquire tuples according to the primary key order.
@@ -107,7 +108,7 @@
 #define ENABLE_LATCH				false
 #define CENTRAL_INDEX				false
 #define CENTRAL_MANAGER 			false
-#define INDEX_STRUCT IDX_HASH
+#define INDEX_STRUCT				IDX_HASH
 #define BTREE_ORDER 				16
 
 // [DL_DETECT] 
@@ -180,6 +181,7 @@
 #define TPCC_ACCESS_ALL 			false 
 #define WH_UPDATE					true
 #define NUM_WH 						1
+#define MPR 0.1
 //
 enum TPCCTxnType {TPCC_ALL, 
 				TPCC_PAYMENT, 

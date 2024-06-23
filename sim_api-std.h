@@ -21,6 +21,7 @@
 #define SIM_GET_EMU_TIME        16
 #define SIM_SYNC_WRITE          17       
 #define SIM_FLUSH_WQ            18
+#define SIM_INSERT_LATENCY      19
 
 #define SIM_OPT_INSTRUMENT_DETAILED    0
 #define SIM_OPT_INSTRUMENT_WARMUP      1
@@ -147,6 +148,7 @@
 #define SimAccessCXLType2()         SimMagic1(SIM_CMD_CHANGE_MEM_MODE, CXL_STRONG_SNIPER_MODE | CXL_TRACK_READ | CXL_TRACK_WRITE)
 #define SimAccessLocal()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
 #define SimAccessReset()            SimMagic1(SIM_CMD_CHANGE_MEM_MODE, LOCAL_SNIPER_MODE)
+#define SimInsertLatency(lat)       SimMagic1(SIM_INSERT_LATENCY, lat)
 
 #define CXLVANILLA 0
 #define CXTNL 0

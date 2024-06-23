@@ -721,6 +721,9 @@ def tput(exec_time):
 
     bm = "tput_tpcc"
     variables = ["CC_ALG", "-n", "-Tp"]
+    key_word = "recent"
+    if exec_time is None:
+        exec_time = get_exec_time(bm, key_word)
 
     yvals, xval = [], []
     oracle, cxl_vanilla, cxtnl = {}, {}, {}    # local time + remote time
@@ -731,8 +734,8 @@ def tput(exec_time):
         name = gen_simplified_name(cfg, arg, env, variables)
         _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
 
-        # tput = (txn_cnt - abort_cnt) / (run_time / arg['-t']) / arg['-t']
-        tput = abort_cnt / txn_cnt
+        tput = (txn_cnt - abort_cnt) / (run_time / arg['-t']) / arg['-t']
+        # tput = abort_cnt / txn_cnt
         # tput = run_time / arg['-t']
 
         if env["SNIPER_CXL_LATENCY"] == 0 and env["SNIPER_MEM_LATENCY"] == 0 and env["PRIMITIVE"] == "CXTNL":
@@ -758,7 +761,44 @@ def tput(exec_time):
     for i, name in enumerate(ordered_name):
         if i % 5 == 0:
             print()
-        print(name, res[i], res2[i], res3[i])
+        print(res[i], res2[i], res3[i])
+
+def tput_rpc(exec_time):
+
+    # bm = "tput_ycsb"
+    # variables = ["-w", "-z", "CC_ALG"]
+
+    bm = "tput_tpcc_rpc"
+    variables = ["CC_ALG", "-n", "-Tp"]
+    key_word = "insert"
+
+    if exec_time is None:
+        exec_time = get_exec_time(bm, key_word)
+
+    rpc = {}    # local time + remote time
+
+    cfgs, args, envs = paper_map[bm]()
+    for arg, cfg, env in itertools.product(args, cfgs, envs):
+        log_path = get_log_path(cfg, arg, env, bm, exec_time)
+        name = gen_simplified_name(cfg, arg, env, variables)
+        _, txn_cnt, abort_cnt, run_time, time_parts = parse_log(log_path)
+
+        tput = (txn_cnt - abort_cnt) / (run_time / arg['-t']) / arg['-t']
+        rpc[name] = tput * 7 / 8
+
+        # print(name, sum(time_parts.values()) / run_time)
+
+    # legend = ["Local Time", "Remote Time"]
+    ordered_name = sorted(rpc.keys(), reverse=True)
+    res = [rpc.get(k, 0) for k in ordered_name]
+    # res = [max(cxtnl[k] / cxl_vanilla[k], 1) for k in sorted(oracle.keys(), reverse=True)]
+    # res = [max(oracle[k] / cxtnl[k], 1) for k in sorted(oracle.keys())]
+    # draw_bar_plot(res, sorted(oracle.keys()), "CXL to SMP Slowdown", "Benchmark", "Slowdown", "./tput_slowdown.png")
+
+    for i, name in enumerate(ordered_name):
+        if i % 5 == 0:
+            print()
+        print(name, res[i])
 
 
 def local_remote_ratio(exec_time):

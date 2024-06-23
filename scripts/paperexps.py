@@ -110,6 +110,15 @@ def format_configs_decorator_filter_smp_cxl(func):
     return wrapper
 
 
+def format_configs_decorator_raw(func):
+    def wrapper():
+        cfgs, args, envs = func()
+        cfgs, args, envs = format_configs(cfg_base, cfgs), format_configs(arg_base, args), format_configs(env_base, envs)
+        new_envs = envs.copy()
+        return cfgs, args, new_envs
+    return wrapper
+
+
 def format_configs_decorator_filter_scalability(func):
     def wrapper():
         cfgs, args, envs = func()
@@ -171,10 +180,10 @@ def tput_tpcc():
     # Env configs
     envs = [
         ("SNIPER", [1]),
-        ("SNIPER_CXL_LATENCY", [0, 847]), # in ns
-        ("SNIPER_MEM_LATENCY", [0, 456]), # in ns
-        # ("SNIPER_CXL_LATENCY", [246]), # in ns
-        # ("SNIPER_MEM_LATENCY", [170]),
+        # ("SNIPER_CXL_LATENCY", [0, 847]), # in ns
+        # ("SNIPER_MEM_LATENCY", [0, 456]), # in ns
+        ("SNIPER_CXL_LATENCY", [246]), # in ns
+        ("SNIPER_MEM_LATENCY", [170]),
         ("PRIMITIVE", ["CXLVANILLA", "CXTNL"]),
         ("NNODE", [8]),
         ("THREAD_PER_NODE", [8]),   # 8 worker + 1 logger
@@ -185,6 +194,73 @@ def tput_tpcc():
         ("-p", [1]),
         ("-n", [8, 64]),
         ("-Tp", [0.5, 0]),
+        ("-Gx", [50]),
+        ("-t", [8 * 8]),
+        ("-Ln", [1]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator_raw
+def tput_tpcc_partition():
+
+    cfgs = [
+        ("WORKLOAD", ['TPCC']),
+        ("CC_ALG", ['OCC']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+        ("MPR", [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [847]), # in ns
+        ("SNIPER_MEM_LATENCY", [456]), # in ns
+        ("PRIMITIVE", ["CXTNL"]),
+        ("NNODE", [4]),
+        ("THREAD_PER_NODE", [8]),   # 8 worker + 1 logger
+    ]
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-n", [32]),
+        ("-Tp", [0]),
+        ("-Gx", [50]),
+        ("-t", [32]),
+        ("-Ln", [1]),
+    ]   # Same with Deneva
+
+    return cfgs, args, envs
+
+
+@format_configs_decorator_filter_smp_cxl
+def tput_tpcc_oracle():
+
+    cfgs = [
+        ("WORKLOAD", ['TPCC']),
+        ("CC_ALG", ['OCC', 'WAIT_DIE', 'NO_WAIT', 'TICTOC', 'SILO']),
+        ("LOG_ALGORITHM", ['LOG_NO']),
+    ]
+
+    # Env configs
+    envs = [
+        ("SNIPER", [1]),
+        ("SNIPER_CXL_LATENCY", [847]), # in ns
+        ("SNIPER_MEM_LATENCY", [456]), # in ns
+        # ("SNIPER_CXL_LATENCY", [246]), # in ns
+        # ("SNIPER_MEM_LATENCY", [170]),
+        ("PRIMITIVE", ["CXTNL"]),
+        ("NNODE", [8]),
+        ("THREAD_PER_NODE", [8]),   # 8 worker + 1 logger
+    ]
+
+    # Args configs
+    args = [
+        ("-p", [1]),
+        ("-n", [64]),
+        ("-Tp", [0.5]),
         ("-Gx", [50]),
         ("-t", [8 * 8]),
         ("-Ln", [1]),
@@ -295,8 +371,6 @@ def latency_tput_ycsb():
     ]   # Keep same with Deneva
 
     return cfgs, args, envs
-
-
 
 
 @format_configs_decorator_filter_smp_cxl
@@ -617,6 +691,7 @@ def bus_bw():
 experiment_map = {
     "tput_ycsb": tput_ycsb,
     "tput_tpcc": tput_tpcc,
+    "tput_tpcc_partition": tput_tpcc_partition,
     "debug_ycsb": debug_ycsb,
     "record_size_sensitivity": record_size_sensitivity,
     "index_sensitivity_tpcc": index_sensitivity_tpcc,
@@ -628,14 +703,20 @@ experiment_map = {
     "bus_bw": bus_bw,
     "latency_tput_tpcc": latency_tput_tpcc,
     "latency_tput_tpcc_tight": latency_tput_tpcc_tight,
-    "latency_tput_ycsb": latency_tput_ycsb
+    "latency_tput_ycsb": latency_tput_ycsb,
 }
 
 time_map = {
     "tput_tpcc": {
         "20240528-211236": "847-456 ns, 2KB/core SF, 8 channel",
         "20240531-114512": "246-170 ns, 16KB/core SF, 8 channel",
-        "20240613-022305": "847-456 ns, 2 channel"
+        "20240613-022305": "847-456 ns, 2 channel",
+        "20240621-202656": "847-456 ns, 16KB/core SF, 8 channel, recent",
+        "20240622-091024": "246-170 ns, 16KB/core SF, 8 channel, recent"
+    },
+    "tput_tpcc_rpc": {
+        "20240621-000358": "847-456 ns, 16KB/core SF, 8 channel, compile snipersim with RPC=1, avoid caching CXL accesses",
+        "20240621-183817": "Using latency insert from DBx1000 tpcc_txn.cpp:261/44"
     },
     "tput_ycsb": {
         "20240530-191418": "847-456 ns, 16KB/core SF, 200B record / tuple",

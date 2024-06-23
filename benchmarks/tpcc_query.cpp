@@ -79,7 +79,8 @@ void tpcc_query::gen_new_order(uint64_t thd_id) {
 	for (UInt32 oid = 0; oid < ol_cnt; oid ++) {
 		items[oid].ol_i_id = NURand(8191, 1, g_max_items, w_id-1);
 		UInt32 x = URand(1, 100, w_id-1);
-		if (x > 1 || g_num_wh == 1)
+		float xx = (float) x / 100.0;
+		if (x > MPR || g_num_wh == 1)
 			items[oid].ol_supply_w_id = w_id;
 		else  {
 			while((items[oid].ol_supply_w_id = URand(1, g_num_wh, w_id-1)) == w_id) {}

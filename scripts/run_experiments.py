@@ -47,6 +47,7 @@ def run_script_in_docker_container(container_name, script, max_retries=3, timeou
     if output == container_name:
         for attempt in range(max_retries):
             cmd = f"docker exec -w {os.getcwd()} {container_name} {script}"
+            print("Executing command: {}".format(cmd))
             process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
                 # Wait for the process to complete or timeout
@@ -122,7 +123,6 @@ def run_binary(cfg: dict, arg: dict, env: dict, exp, retry=0):
         recorder_args += ["-g", f"perf_model/dram/num_controllers={NNODE}"]
 
         cmd = sniper_bin + " " + " ".join(map(str, recorder_args)) + " -- " + os.path.join(home, get_executable_name(cfg)) + ' ' + arg_value
-        print("Executing command: {}".format(cmd))
         output = run_script_in_docker_container("docker_sniper-dev-container_1", "pkill -f snipersim")
         output = run_script_in_docker_container("docker_sniper-dev-container_1", cmd)
         # process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
